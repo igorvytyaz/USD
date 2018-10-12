@@ -905,7 +905,7 @@ DRACO_URL = "https://github.com/google/draco/archive/master.zip"
 
 def InstallDraco(context, force, buildArgs):
     with CurrentWorkingDirectory(DownloadURL(DRACO_URL, context, force)):
-        cmakeOptions = ['-DENABLE_PIC=ON']
+        cmakeOptions = ['-DBUILD_USD_PLUGIN=ON']
         cmakeOptions += buildArgs
         RunCMake(context, force, cmakeOptions)
 
