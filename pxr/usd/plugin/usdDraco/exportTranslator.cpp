@@ -76,7 +76,7 @@ bool UsdDracoExportTranslator::_Translate(
         preservePolygons, preservePositionOrder, preserveHoles);
 
     // Set data to Draco mesh.
-    _SetNumPositionsToMesh();
+    _SetNumPointsToMesh();
     _SetAttributesToMesh();
     _SetPointMapsToMesh();
     _Deduplicate();
@@ -191,7 +191,7 @@ bool UsdDracoExportTranslator::_SubdivisionRefersToFaces() const {
     return false;
 }
 
-void UsdDracoExportTranslator::_SetNumPositionsToMesh() const {
+void UsdDracoExportTranslator::_SetNumPointsToMesh() const {
     size_t numPositions = 0;
     for (size_t i = 0; i < _faceVertexCounts.size(); i++) {
       const size_t numFaceVertices = _faceVertexCounts[i];
