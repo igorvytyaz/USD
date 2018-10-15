@@ -64,9 +64,12 @@ bool UsdDraco_WriteDraco(const UsdGeomMesh &usdMesh,
   draco::EncoderBuffer buffer;
   draco::Encoder encoder;
   encoder.SetEncodingMethod(draco::MESH_EDGEBREAKER_ENCODING);
-  encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, qp);
-  encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, qt);
-  encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, qn);
+  if (qp != 0)
+      encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, qp);
+  if (qt != 0)
+      encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, qt);
+  if (qn != 0)
+      encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, qn);
   encoder.SetSpeedOptions(0, 0);
   encoder.SetAttributePredictionScheme(draco::GeometryAttribute::GENERIC,
                                        draco::PREDICTION_DIFFERENCE);

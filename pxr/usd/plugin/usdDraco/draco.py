@@ -90,6 +90,11 @@ class Options(object):
     self.checkBooleanOption(options, self.PRESERVE_POLYGONS)
     self.checkBooleanOption(options, self.DISCARD_SUBDIVISION)
 
+    # Check quantization bits values.
+    self.checkIntOptionRange(options, self.QP, 0, 30)
+    self.checkIntOptionRange(options, self.QT, 0, 30)
+    self.checkIntOptionRange(options, self.QN, 0, 30)
+
   def checkIntOption(self, options, name):
     """Checks and parses integer option."""
 
@@ -99,6 +104,14 @@ class Options(object):
       except ValueError:
         Options.printUnexpectedValue(name, 'integer', options[name])
         self.usage()
+
+  def checkIntOptionRange(self, options, name, minValue, maxValue):
+    """Checks whether an integer option is within a valid range."""
+
+    if options[name] < minValue or options[name] > maxValue:
+      print ('Expected {0} argument between {1} and {2}, got {3}.'
+             .format(name, minValue, maxValue, options[name]))
+      self.usage()
 
   def checkBooleanOption(self, options, name):
     """Checks and parses boolean option."""
