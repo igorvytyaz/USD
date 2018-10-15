@@ -173,30 +173,13 @@ void UsdDracoImportTranslator::_PopulateIndicesFromMesh() {
             do {
                 // Get the next polygon point index by following polygon edge.
                 const draco::PointIndex pi = polygonEdges[positionIndex];
+                _SetIndices(vertexIndex++, pi);
                 positionIndex = _positions.GetMappedIndex(pi);
-                _faceVertexIndices[vertexIndex++] =
-                    _posOrder.HasPointAttribute()
-                        ? _posOrder.GetMappedValue(pi)
-                        : _positions.GetMappedIndex(pi);
-                if (_texCoords.HasPointAttribute())
-                    _texCoords.SetIndex(vertexIndex,
-                                        _texCoords.GetMappedIndex(pi));
-                if (_normals.HasPointAttribute())
-                    _normals.SetIndex(vertexIndex,
-                                      _normals.GetMappedIndex(pi));
             } while (positionIndex != firstPositionIndex);
         } else {
             _faceVertexCounts[i] = 3;
             for (size_t c = 0; c < 3; c++) {
-                const size_t ci = 3 * i + c;
-                const draco::PointIndex pi = face[c];
-                _faceVertexIndices[ci] = _posOrder.HasPointAttribute()
-                    ? _posOrder.GetMappedValue(pi)
-                    : _positions.GetMappedIndex(pi);
-                if (_texCoords.HasPointAttribute())
-                    _texCoords.SetIndex(ci, _texCoords.GetMappedIndex(pi));
-                if (_normals.HasPointAttribute())
-                    _normals.SetIndex(ci, _normals.GetMappedIndex(pi));
+                _SetIndices(vertexIndex++, face[c]);
             }
         }
         if (_holeFaces.HasPointAttribute())
@@ -218,6 +201,18 @@ void UsdDracoImportTranslator::_PopulateIndicesFromMesh() {
     _faceVertexIndices.resize(numPoints);
     _texCoords.ResizeIndices(numPoints);
     _normals.ResizeIndices(numPoints);
+}
+
+inline void UsdDracoImportTranslator::_SetIndices(
+    size_t vertexIndex, draco::PointIndex pointIndex) {
+    _faceVertexIndices[vertexIndex] =
+    _posOrder.HasPointAttribute()
+        ? _posOrder.GetMappedValue(pointIndex)
+        : _positions.GetMappedIndex(pointIndex);
+    if (_texCoords.HasPointAttribute())
+        _texCoords.SetIndex(vertexIndex, _texCoords.GetMappedIndex(pointIndex));
+    if (_normals.HasPointAttribute())
+        _normals.SetIndex(vertexIndex, _normals.GetMappedIndex(pointIndex));
 }
 
 void UsdDracoImportTranslator::_SetAttributesToMesh(UsdGeomMesh *usdMesh) const {

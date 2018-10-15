@@ -171,7 +171,7 @@ void UsdDracoImportAttribute<ArrayT>::ResizeIndices(size_t size) {
 }
 
 template <class ArrayT>
-void UsdDracoImportAttribute<ArrayT>::SetIndex(size_t at, int index) {
+inline void UsdDracoImportAttribute<ArrayT>::SetIndex(size_t at, int index) {
     _indices[at] = index;
 }
 

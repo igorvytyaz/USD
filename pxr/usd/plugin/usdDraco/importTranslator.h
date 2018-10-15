@@ -59,6 +59,7 @@ private:
     bool _CheckData() const;
     void _PopulateValuesFromMesh();
     void _PopulateIndicesFromMesh();
+    void _SetIndices(size_t vertexIndex, draco::PointIndex pointIndex);
     void _SetAttributesToMesh(UsdGeomMesh *usdMesh) const;
     bool _HasTrianglesOnly() const;
     bool _SubdivisionRefersToPositions(const UsdGeomMesh &usdMesh) const;
