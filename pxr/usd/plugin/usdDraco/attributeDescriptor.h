@@ -53,7 +53,7 @@ struct UsdDracoAttributeDescriptor {
     UsdDracoAttributeDescriptor() = delete;
     UsdDracoAttributeDescriptor(draco::GeometryAttribute::Type attribteType,
                                 TfToken name,
-                                std::string metadataName,
+                                const std::string &metadataName,
                                 draco::DataType dataType,
                                 SdfValueTypeName valueType,
                                 bool isPrimvar,

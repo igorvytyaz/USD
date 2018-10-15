@@ -66,7 +66,7 @@ private:
     void _ConfigureGenericAttributes(UsdDracoFlag<bool> preservePolygons,
                                      UsdDracoFlag<bool> preservePositionOrder,
                                      UsdDracoFlag<bool> preserveHoles);
-    void _SetNumPositionsToMesh() const;
+    void _SetNumPointsToMesh() const;
     void _SetAttributesToMesh();
     void _SetPointMapsToMesh();
     void _Deduplicate() const;

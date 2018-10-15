@@ -46,11 +46,23 @@ PXR_NAMESPACE_OPEN_SCOPE
 template <class ArrayT>
 class UsdDracoExportAttribute {
 public:
-    UsdDracoExportAttribute(UsdDracoAttributeDescriptor descriptor);
+    UsdDracoExportAttribute(const UsdDracoAttributeDescriptor &descriptor);
+
+    // Populates member arrays with data from USD mesh based on descriptor.
     void GetFromMesh(const UsdGeomMesh &usdMesh, size_t numPositions);
+
+    // Populates member values array with an ascending sequence (0, 1, 2, ...)
+    // of a given size.
     void GetFromRange(size_t size);
+
+    // Creates Draco mesh attribute, sets the values, and metadata.
     void SetToMesh(draco::Mesh *dracoMesh);
+
+    // Sets Draco mesh attribute point map entry.
     void SetPointMapEntry(draco::PointIndex pointIndex, size_t entryIndex);
+
+    // Sets Draco mesh attribute point map entry using either position index or
+    // corner index, depending on the USD attribute interpolation value.
     void SetPointMapEntry(draco::PointIndex pointIndex,
                           size_t positionIndex, size_t cornerIndex);
     void Clear();
@@ -74,7 +86,7 @@ private:
 
 template <class ArrayT>
 UsdDracoExportAttribute<ArrayT>::UsdDracoExportAttribute(
-    UsdDracoAttributeDescriptor descriptor) :
+    const UsdDracoAttributeDescriptor &descriptor) :
         _descriptor(descriptor),
         _pointAttribute(nullptr),
         _usePositionIndex(false) {

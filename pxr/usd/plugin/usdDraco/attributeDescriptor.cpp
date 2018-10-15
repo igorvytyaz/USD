@@ -37,7 +37,7 @@ const std::string UsdDracoAttributeDescriptor::METADATA_NAME_KEY = "name";
 UsdDracoAttributeDescriptor::UsdDracoAttributeDescriptor(
         draco::GeometryAttribute::Type attributeType,
         TfToken name,
-        std::string metadataName,
+        const std::string &metadataName,
         draco::DataType dataType,
         SdfValueTypeName valueType,
         bool isPrimvar,
