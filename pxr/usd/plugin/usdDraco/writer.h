@@ -41,6 +41,7 @@ bool UsdDraco_WriteDraco(const UsdGeomMesh &mesh,
                          int qp,
                          int qt,
                          int qn,
+                         int cl,
                          int preservePolygons,
                          int preservePositionOrder,
                          int preserveHoles);

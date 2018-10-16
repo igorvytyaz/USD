@@ -40,6 +40,7 @@ void wrapUsdDraco()
          arg("qp"),
          arg("qt"),
          arg("qn"),
+         arg("cl"),
          arg("preservePolygons"),
          arg("preservePositionOrder"),
          arg("preserveHoles")));

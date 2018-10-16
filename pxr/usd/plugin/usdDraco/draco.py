@@ -18,6 +18,7 @@ class Options(object):
   QP = '-qp'
   QT = '-qt'
   QN = '-qn'
+  CL = '-cl'
   PRESERVE_POLYGONS = '-preserve_polygons'
   DISCARD_SUBDIVISION = '-discard_subdivision'
 
@@ -27,12 +28,29 @@ class Options(object):
       QP: 14,
       QT: 12,
       QN: 10,
+      CL: 10,
       PRESERVE_POLYGONS: UNSPECIFIED,
       DISCARD_SUBDIVISION: UNSPECIFIED,
   }
 
   # Required options.
   REQUIRED = {INPUT, OUTPUT}
+
+
+  class Range:
+    """Represents a range of option values."""
+
+    def __init__(self, minValue, maxValue):
+      """Constructs a range as an interval between two values."""
+
+      self.minValue = minValue
+      self.maxValue = maxValue
+
+    def __contains__(self, value):
+      """Overriding the in operator."""
+
+      return self.minValue <= value <= self.maxValue
+
 
   def __init__(self, arguments):
     """Parses, checks, and stored command-line options."""
@@ -56,6 +74,7 @@ class Options(object):
              '  ' + self.QP + ' <quantization bits for positions>  \\\n' + \
              '  ' + self.QT + ' <quantization bits for textures>  \\\n' + \
              '  ' + self.QN + ' <quantization bits for normals>  \\\n' + \
+             '  ' + self.CL + ' <compression level [0-10], best=10>  \\\n' + \
              '  ' + self.PRESERVE_POLYGONS + ' 0|1')
 
   def parseArguments(self, arguments):
@@ -83,48 +102,43 @@ class Options(object):
       print 'Input file is missing.'
       self.usage()
 
-    # Check wheter integer and boolean options can be parsed.
-    self.checkIntOption(options, self.QP)
-    self.checkIntOption(options, self.QT)
-    self.checkIntOption(options, self.QN)
+    # Check wheter integer options can be parsed and are within a valid range.
+    self.checkIntOption(options, self.QP, self.Range(0, 30), '[0-30]')
+    self.checkIntOption(options, self.QT, self.Range(0, 30), '[0-30]')
+    self.checkIntOption(options, self.QN, self.Range(0, 30), '[0-30]')
+    self.checkIntOption(options, self.CL, self.Range(0, 10), '[0-10]')
+
+    # Checks whether boolean options can be parsed.
     self.checkBooleanOption(options, self.PRESERVE_POLYGONS)
     self.checkBooleanOption(options, self.DISCARD_SUBDIVISION)
 
-    # Check quantization bits values.
-    self.checkIntOptionRange(options, self.QP, 0, 30)
-    self.checkIntOptionRange(options, self.QT, 0, 30)
-    self.checkIntOptionRange(options, self.QN, 0, 30)
+  def checkIntOption(self, options, name, validRange, want):
+    """Parses an integer option and checks whether the value is valid."""
 
-  def checkIntOption(self, options, name):
-    """Checks and parses integer option."""
-
+    # Check whether an integer option can be parsed.
     if not isinstance(options[name], int):
       try:
         options[name] = int(options[name])
       except ValueError:
-        Options.printUnexpectedValue(name, 'integer', options[name])
+        Options.printUnexpectedValue(name, want, options[name])
         self.usage()
 
-  def checkIntOptionRange(self, options, name, minValue, maxValue):
-    """Checks whether an integer option is within a valid range."""
-
-    if options[name] < minValue or options[name] > maxValue:
-      print ('Expected {0} argument between {1} and {2}, got {3}.'
-             .format(name, minValue, maxValue, options[name]))
+    # Check whether an integer option is within a valid range.
+    if options[name] not in validRange:
+      Options.printUnexpectedValue(name, want, options[name])
       self.usage()
 
   def checkBooleanOption(self, options, name):
     """Checks and parses boolean option."""
 
-    self.checkIntOption(options, name)
-    if options[name] not in {0, 1, self.UNSPECIFIED}:
-      Options.printUnexpectedValue(name, '0|1', options[name])
-      self.usage()
+    validRange = {0, 1, self.UNSPECIFIED}
+    self.checkIntOption(options, name, validRange, '0|1')
 
   @staticmethod
   def printUnexpectedValue(name, want, got):
     """Prints a message when invalid option value is specified."""
-    print 'Expected {0} for {1} argument, got \'{2}\'.'.format(want, name, got)
+
+    print 'Expected {0} for {1} argument, got {2}.'.format(want, name, got)
 
   def printOptions(self, options):
     """Prints options."""
@@ -135,6 +149,7 @@ class Options(object):
     print '  quantization bits for positions : ' + str(options[self.QP])
     print '  quantization bits for textures  : ' + str(options[self.QT])
     print '  quantization bits for normals   : ' + str(options[self.QN])
+    print '  compression level : ' + str(options[self.CL])
     self.printBooleanOption('preserve polygons',
                             options[self.PRESERVE_POLYGONS])
     self.printBooleanOption('discard subdivision',
@@ -208,6 +223,7 @@ class UsdDracoEncoder(object):
                                    self.options[Options.QP],
                                    self.options[Options.QT],
                                    self.options[Options.QN],
+                                   self.options[Options.CL],
                                    self.options[Options.PRESERVE_POLYGONS],
                                    preserve_pos_order,
                                    preserve_holes)

@@ -44,6 +44,7 @@ bool UsdDraco_WriteDraco(const UsdGeomMesh &usdMesh,
                          int qp,
                          int qt,
                          int qn,
+                         int cl,
                          int preservePolygons,
                          int preservePositionOrder,
                          int preserveHoles)
@@ -70,7 +71,9 @@ bool UsdDraco_WriteDraco(const UsdGeomMesh &usdMesh,
       encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, qt);
   if (qn != 0)
       encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, qn);
-  encoder.SetSpeedOptions(0, 0);
+
+  const int speed = 10 - cl;
+  encoder.SetSpeedOptions(speed, speed);
   encoder.SetAttributePredictionScheme(draco::GeometryAttribute::GENERIC,
                                        draco::PREDICTION_DIFFERENCE);
   if (!encoder.EncodeMeshToBuffer(dracoMesh, &buffer).ok()) {
