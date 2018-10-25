@@ -60,7 +60,7 @@ UsdDracoFileFormat::~UsdDracoFileFormat() {
 }
 
 bool UsdDracoFileFormat::CanRead(const std::string &filePath) const {
-    // TODO: Read ehough data to parse the header and check Draco string and
+    // TODO: Read enough data to parse the header and check Draco string and
     // version, see PointCloudDecoder::DecodeHeader.
     return true;
 }

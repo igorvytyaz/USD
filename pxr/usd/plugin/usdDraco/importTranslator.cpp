@@ -70,8 +70,8 @@ void UsdDracoImportTranslator::_FindOriginalFaceEdges(
         // Check for added edge using this corner.
         const draco::PointIndex pi = face[c];
         bool isNewEdge = _addedEdges.GetMappedValue(pi);
-        draco::CornerIndex ci = cornerTable->FirstCorner(faceIndex) + c;
-        draco::CornerIndex co = cornerTable->Opposite(ci);
+        const draco::CornerIndex ci = cornerTable->FirstCorner(faceIndex) + c;
+        const draco::CornerIndex co = cornerTable->Opposite(ci);
 
         // Check for the new edge using the opposite corner.
         if (!isNewEdge && co != draco::kInvalidCornerIndex) {
@@ -80,12 +80,12 @@ void UsdDracoImportTranslator::_FindOriginalFaceEdges(
         }
         if (isNewEdge) {
             // Visit triangle across the new edge.
-            draco::FaceIndex oppositeFaceIndex = cornerTable->Face(co);
+            const draco::FaceIndex oppositeFaceIndex = cornerTable->Face(co);
             _FindOriginalFaceEdges(oppositeFaceIndex, cornerTable,
                                    triangleVisited, polygonEdges);
         } else {
             // Insert the original edge to the map.
-            draco::PointIndex pointFrom = face[(c + 1) % 3];
+            const draco::PointIndex pointFrom = face[(c + 1) % 3];
             draco::PointIndex pointTo = face[(c + 2) % 3];
             polygonEdges.insert(
                 {PositionIndex(_positions.GetMappedIndex(pointFrom)),
@@ -120,11 +120,12 @@ SdfLayerRefPtr UsdDracoImportTranslator::_Translate()
 }
 
 void UsdDracoImportTranslator::_PopulateValuesFromMesh() {
-    const size_t numFaces = _dracoMesh.num_faces();
-    if (_posOrder.HasPointAttribute())
+    if (_posOrder.HasPointAttribute()) {
+        const size_t numFaces = _dracoMesh.num_faces();
         _positions.PopulateValuesWithOrder(_posOrder, numFaces, _dracoMesh);
-    else
+    } else {
         _positions.PopulateValues();
+    }
     _texCoords.PopulateValues();
     _normals.PopulateValues();
 }
@@ -204,7 +205,7 @@ void UsdDracoImportTranslator::_PopulateIndicesFromMesh() {
 }
 
 inline void UsdDracoImportTranslator::_SetIndices(
-    size_t vertexIndex, draco::PointIndex pointIndex) {
+        size_t vertexIndex, draco::PointIndex pointIndex) {
     _faceVertexIndices[vertexIndex] =
     _posOrder.HasPointAttribute()
         ? _posOrder.GetMappedValue(pointIndex)

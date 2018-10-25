@@ -74,8 +74,6 @@ bool UsdDraco_WriteDraco(const UsdGeomMesh &usdMesh,
 
   const int speed = 10 - cl;
   encoder.SetSpeedOptions(speed, speed);
-  encoder.SetAttributePredictionScheme(draco::GeometryAttribute::GENERIC,
-                                       draco::PREDICTION_DIFFERENCE);
   if (!encoder.EncodeMeshToBuffer(dracoMesh, &buffer).ok()) {
       std::cout << "Could not encode mesh." << std::endl;
       return false;
