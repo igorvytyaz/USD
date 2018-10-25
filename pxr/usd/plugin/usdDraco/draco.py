@@ -212,7 +212,7 @@ class UsdDracoEncoder(object):
         print '  saved ' + fileName
 
   def encodeMesh(self, mesh, fileName):
-    """Compresses mesh to file and trips geometry properties from USD mesh."""
+    """Compresses mesh to file and strips geometry properties from USD mesh."""
 
     # Convert discard subdivision option to preserve options.
     preserve_pos_order = Options.inv(self.options[Options.DISCARD_SUBDIVISION])
