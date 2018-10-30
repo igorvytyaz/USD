@@ -150,11 +150,12 @@ void UsdDracoImportTranslator::_PopulateIndicesFromMesh() {
     std::vector<bool> triangleVisited(numFaces, false);
 
     // Populate index arrays.
+    PolygonEdges polygonEdges;
     for (size_t i = 0; i < numFaces; i++) {
         const draco::Mesh::Face &face = _dracoMesh.face(draco::FaceIndex(i));
         if (_addedEdges.HasPointAttribute()) {
             draco::FaceIndex fi(i);
-            PolygonEdges polygonEdges;
+            polygonEdges.clear();
             _FindOriginalFaceEdges(
                 fi, cornerTable.get(), triangleVisited, polygonEdges);
 

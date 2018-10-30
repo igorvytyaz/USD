@@ -8,7 +8,7 @@ pxr_plugin(${PXR_PACKAGE}
         sdf
         usd
         usdGeom
-	draco
+        draco
 
     INCLUDE_DIRS
         ${Boost_INCLUDE_DIRS}
@@ -26,7 +26,7 @@ pxr_plugin(${PXR_PACKAGE}
 
     PYMODULE_CPPFILES
         module.cpp
-	wrapDraco.cpp
+        wrapDraco.cpp
 
     PYMODULE_FILES
         __init__.py

@@ -51,9 +51,7 @@ private:
     typedef draco::AttributeValueIndex PositionIndex;
     typedef std::map<PositionIndex, draco::PointIndex> PolygonEdges;
 
-    /// Constructor.
     UsdDracoImportTranslator(const draco::Mesh &dracoMesh);
-
     SdfLayerRefPtr _Translate();
     VtVec3fArray _ComputeExtent() const;
     bool _CheckData() const;

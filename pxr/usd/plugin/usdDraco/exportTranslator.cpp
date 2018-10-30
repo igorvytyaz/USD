@@ -192,13 +192,13 @@ bool UsdDracoExportTranslator::_SubdivisionRefersToFaces() const {
 }
 
 void UsdDracoExportTranslator::_SetNumPointsToMesh() const {
-    size_t numPositions = 0;
+    size_t numPoints = 0;
     for (size_t i = 0; i < _faceVertexCounts.size(); i++) {
-      const size_t numFaceVertices = _faceVertexCounts[i];
-      const size_t numTriangles = numFaceVertices - 2;
-      numPositions += 3 * numTriangles;
+        const size_t numFaceVertices = _faceVertexCounts[i];
+        const size_t numTriangles = numFaceVertices - 2;
+        numPoints += 3 * numTriangles;
     }
-    _dracoMesh->set_num_points(numPositions);
+    _dracoMesh->set_num_points(numPoints);
 }
 
 void UsdDracoExportTranslator::_SetAttributesToMesh() {
