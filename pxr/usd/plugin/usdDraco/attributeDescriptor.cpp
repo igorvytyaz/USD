@@ -92,7 +92,7 @@ UsdDracoAttributeDescriptor ForHoleFaces() {
         draco::GeometryAttribute::GENERIC,
         TfToken(),
         "hole_faces",
-        draco::DT_UINT32,
+        draco::DT_UINT8,
         SdfValueTypeNames->IntArray,
         false,  /* isPrimvar */
         1  /* numComponents */);
@@ -103,7 +103,7 @@ UsdDracoAttributeDescriptor ForAddedEdges() {
         draco::GeometryAttribute::GENERIC,
         TfToken(),
         "added_edges",
-        draco::DT_UINT32,
+        draco::DT_UINT8,
         SdfValueTypeName(),
         false,  /* isPrimvar */
         1  /* numComponents */);
