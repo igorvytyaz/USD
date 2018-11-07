@@ -70,12 +70,12 @@ private:
 private:
     const draco::Mesh &_dracoMesh;
 
-    UsdDracoImportAttribute<VtVec3fArray> _positions;
-    UsdDracoImportAttribute<VtVec2fArray> _texCoords;
-    UsdDracoImportAttribute<VtVec3fArray> _normals;
-    UsdDracoImportAttribute<VtIntArray> _holeFaces;
-    UsdDracoImportAttribute<VtIntArray> _addedEdges;
-    UsdDracoImportAttribute<VtIntArray> _posOrder;
+    UsdDracoImportAttribute<GfVec3f> _positions;
+    UsdDracoImportAttribute<GfVec2f> _texCoords;
+    UsdDracoImportAttribute<GfVec3f> _normals;
+    UsdDracoImportAttribute<uint8_t> _holeFaces;
+    UsdDracoImportAttribute<uint8_t> _addedEdges;
+    UsdDracoImportAttribute<int> _posOrder;
 
     VtIntArray _faceVertexCounts;
     VtIntArray _faceVertexIndices;

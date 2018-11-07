@@ -123,9 +123,9 @@ bool UsdDracoExportTranslator::_CheckData() const {
     return true;
 }
 
-template <class ArrayT>
+template <class T>
 bool UsdDracoExportTranslator::_CheckPrimvarData(
-    const UsdDracoExportAttribute<ArrayT> &attribute) const {
+    const UsdDracoExportAttribute<T> &attribute) const {
     if (attribute.GetNumValues() == 0)
         return true;
     if (attribute.UsesPositionIndex())
