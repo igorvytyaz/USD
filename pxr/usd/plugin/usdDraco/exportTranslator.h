@@ -60,9 +60,8 @@ private:
     void _GetAttributesFromMesh();
     void _GetConnectivityFromMesh();
     bool _CheckData() const;
-    template <class ArrayT>
-    bool _CheckPrimvarData(
-        const UsdDracoExportAttribute<ArrayT> &attribute) const;
+    template <class T>
+    bool _CheckPrimvarData(const UsdDracoExportAttribute<T> &attribute) const;
     void _ConfigureGenericAttributes(UsdDracoFlag<bool> preservePolygons,
                                      UsdDracoFlag<bool> preservePositionOrder,
                                      UsdDracoFlag<bool> preserveHoles);
@@ -80,12 +79,12 @@ private:
     const UsdGeomMesh &_usdMesh;
     draco::Mesh *_dracoMesh;
 
-    UsdDracoExportAttribute<VtVec3fArray> _positions;
-    UsdDracoExportAttribute<VtVec2fArray> _texCoords;
-    UsdDracoExportAttribute<VtVec3fArray> _normals;
-    UsdDracoExportAttribute<VtIntArray> _holeFaces;
-    UsdDracoExportAttribute<VtIntArray> _addedEdges;
-    UsdDracoExportAttribute<VtIntArray> _posOrder;
+    UsdDracoExportAttribute<GfVec3f> _positions;
+    UsdDracoExportAttribute<GfVec2f> _texCoords;
+    UsdDracoExportAttribute<GfVec3f> _normals;
+    UsdDracoExportAttribute<uint8_t> _holeFaces;
+    UsdDracoExportAttribute<uint8_t> _addedEdges;
+    UsdDracoExportAttribute<int> _posOrder;
 
     VtIntArray _faceVertexCounts;
     VtIntArray _faceVertexIndices;

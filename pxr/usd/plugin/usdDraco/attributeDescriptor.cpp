@@ -93,7 +93,7 @@ UsdDracoAttributeDescriptor ForHoleFaces() {
         TfToken(),
         "hole_faces",
         draco::DT_UINT8,
-        SdfValueTypeNames->IntArray,
+        SdfValueTypeName(),
         false,  /* isPrimvar */
         1  /* numComponents */);
 }

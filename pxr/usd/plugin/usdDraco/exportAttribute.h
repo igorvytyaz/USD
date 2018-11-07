@@ -43,7 +43,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 ///
 /// Helps to read and write mesh attributes while exporting USD files to Draco.
 ///
-template <class ArrayT>
+template <class T>
 class UsdDracoExportAttribute {
 public:
     UsdDracoExportAttribute(const UsdDracoAttributeDescriptor &descriptor);
@@ -72,28 +72,37 @@ public:
     bool HasPointAttribute() const;
 
 private:
-    static void _MakeRange(VtIntArray *array, size_t size);
+    template <class S>
+    static void _MakeRange(VtArray<S> *array, size_t size);
     void _SetAttributeValue(draco::AttributeValueIndex avi, size_t index);
+
+    // Specialization for values of integral types like int and bool.
+    void _SetAttributeValueSpecialized(
+        draco::AttributeValueIndex avi, const T &value, std::true_type);
+
+    // Specialization for values of non-integral types like GfVec2f and GfVec3f.
+    void _SetAttributeValueSpecialized(
+        draco::AttributeValueIndex avi, const T &value, std::false_type);
 
 private:
     UsdDracoAttributeDescriptor _descriptor;
     draco::PointAttribute *_pointAttribute;
     bool _usePositionIndex;
-    ArrayT _values;
-    VtIntArray _indices;
+    VtArray<T> _values;
+    VtArray<int> _indices;
 };
 
 
-template <class ArrayT>
-UsdDracoExportAttribute<ArrayT>::UsdDracoExportAttribute(
+template <class T>
+UsdDracoExportAttribute<T>::UsdDracoExportAttribute(
     const UsdDracoAttributeDescriptor &descriptor) :
         _descriptor(descriptor),
         _pointAttribute(nullptr),
         _usePositionIndex(false) {
 }
 
-template <class ArrayT>
-void UsdDracoExportAttribute<ArrayT>::GetFromMesh(
+template <class T>
+void UsdDracoExportAttribute<T>::GetFromMesh(
         const UsdGeomMesh &usdMesh, size_t numPositions) {
     if (_descriptor.isPrimvar) {
         // Get data from a primvar.
@@ -105,7 +114,7 @@ void UsdDracoExportAttribute<ArrayT>::GetFromMesh(
         primvar.GetIndices(&_indices);
 
         // Primvars with constant interpolation are not translated to Draco and
-        // remain in USDmesh.
+        // remain in USD mesh.
         TfToken interpolation = primvar.GetInterpolation();
         if (interpolation == UsdGeomTokens->constant)
             return;
@@ -124,8 +133,8 @@ void UsdDracoExportAttribute<ArrayT>::GetFromMesh(
     }
 }
 
-template <class ArrayT>
-void UsdDracoExportAttribute<ArrayT>::SetToMesh(draco::Mesh *dracoMesh) {
+template <class T>
+void UsdDracoExportAttribute<T>::SetToMesh(draco::Mesh *dracoMesh) {
     // Optional attributes like normals may not be present.
     if (_values.empty())
         return;
@@ -136,11 +145,11 @@ void UsdDracoExportAttribute<ArrayT>::SetToMesh(draco::Mesh *dracoMesh) {
         draco::DataTypeLength(_descriptor.dataType);
     geometryAttr.Init(_descriptor.attributeType,
                       nullptr /* buffer */,
-                       _descriptor.numComponents,
-                       _descriptor.dataType,
-                       false /* normalized */,
-                       byteStride,
-                       0 /* byteOffset */);
+                      _descriptor.numComponents,
+                      _descriptor.dataType,
+                      false /* normalized */,
+                      byteStride,
+                      0 /* byteOffset */);
     const int attrId =
         dracoMesh->AddAttribute(geometryAttr, false, _values.size());
     _pointAttribute = dracoMesh->attribute(attrId);
@@ -161,34 +170,41 @@ void UsdDracoExportAttribute<ArrayT>::SetToMesh(draco::Mesh *dracoMesh) {
     }
 }
 
-template <class ArrayT>
-void UsdDracoExportAttribute<ArrayT>::GetFromRange(size_t size) {
+template <class T>
+void UsdDracoExportAttribute<T>::GetFromRange(size_t size) {
     _MakeRange(&_values, size);
 }
 
-template <class ArrayT>
-void UsdDracoExportAttribute<ArrayT>::_MakeRange(
-        VtIntArray *array, size_t size) {
+template <class T>
+template <class S>
+void UsdDracoExportAttribute<T>::_MakeRange(
+        VtArray<S> *array, size_t size) {
     (*array).resize(size);
     for (size_t i = 0; i < size; i++) {
-        (*array)[i] = i;
+        (*array)[i] = static_cast<S>(i);
     }
 }
 
-template <class ArrayT>
-inline void UsdDracoExportAttribute<ArrayT>::_SetAttributeValue(
+template <class T>
+inline void UsdDracoExportAttribute<T>::_SetAttributeValue(
         draco::AttributeValueIndex avi, size_t index) {
-    _pointAttribute->SetAttributeValue(avi, _values[index].data());
+    _SetAttributeValueSpecialized(avi, _values[index], std::is_integral<T>());
 }
 
-template <>
-inline void UsdDracoExportAttribute<VtIntArray>::_SetAttributeValue(
-        draco::AttributeValueIndex avi, size_t index) {
-    _pointAttribute->SetAttributeValue(avi, &_values[index]);
+template<class T>
+void UsdDracoExportAttribute<T>::_SetAttributeValueSpecialized(
+        draco::AttributeValueIndex avi, const T &value, std::true_type) {
+    _pointAttribute->SetAttributeValue(avi, &value);
 }
 
-template <class ArrayT>
-inline void UsdDracoExportAttribute<ArrayT>::SetPointMapEntry(
+template<class T>
+void UsdDracoExportAttribute<T>::_SetAttributeValueSpecialized(
+        draco::AttributeValueIndex avi, const T &value, std::false_type) {
+    _pointAttribute->SetAttributeValue(avi, value.data());
+}
+
+template <class T>
+inline void UsdDracoExportAttribute<T>::SetPointMapEntry(
         draco::PointIndex pointIndex, size_t entryIndex) {
     if (_pointAttribute != nullptr) {
         _pointAttribute->SetPointMapEntry(
@@ -196,8 +212,8 @@ inline void UsdDracoExportAttribute<ArrayT>::SetPointMapEntry(
     }
 }
 
-template <class ArrayT>
-inline void UsdDracoExportAttribute<ArrayT>::SetPointMapEntry(
+template <class T>
+inline void UsdDracoExportAttribute<T>::SetPointMapEntry(
         draco::PointIndex pointIndex, size_t positionIndex,
         size_t cornerIndex) {
     if (_pointAttribute != nullptr) {
@@ -207,31 +223,31 @@ inline void UsdDracoExportAttribute<ArrayT>::SetPointMapEntry(
     }
 }
 
-template <class ArrayT>
-void UsdDracoExportAttribute<ArrayT>::Clear() {
+template <class T>
+void UsdDracoExportAttribute<T>::Clear() {
     _values.clear();
     _indices.clear();
     _usePositionIndex = false;
     _pointAttribute = nullptr;
 }
 
-template <class ArrayT>
-size_t UsdDracoExportAttribute<ArrayT>::GetNumValues() const {
+template <class T>
+size_t UsdDracoExportAttribute<T>::GetNumValues() const {
     return _values.size();
 }
 
-template <class ArrayT>
-size_t UsdDracoExportAttribute<ArrayT>::GetNumIndices() const {
+template <class T>
+size_t UsdDracoExportAttribute<T>::GetNumIndices() const {
     return _indices.size();
 }
 
-template <class ArrayT>
-bool UsdDracoExportAttribute<ArrayT>::UsesPositionIndex() const {
+template <class T>
+bool UsdDracoExportAttribute<T>::UsesPositionIndex() const {
     return _usePositionIndex;
 }
 
-template <class ArrayT>
-inline bool UsdDracoExportAttribute<ArrayT>::HasPointAttribute() const {
+template <class T>
+inline bool UsdDracoExportAttribute<T>::HasPointAttribute() const {
     return _pointAttribute != nullptr;
 }
 
