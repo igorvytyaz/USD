@@ -93,14 +93,20 @@ bool UsdDracoFileFormat::_ReadFromStream(
     // Decode Draco mesh from buffer.
     SdfLayerRefPtr dracoAsUsd;
     if (maybeGeometryType.value() == draco::TRIANGULAR_MESH) {
-        draco::Decoder decoder;
-        draco::StatusOr<std::unique_ptr<draco::Mesh>> maybeMesh =
-            decoder.DecodeMeshFromBuffer(&buffer);
-        const std::unique_ptr<draco::Mesh> mesh = std::move(maybeMesh).value();
-        if (!maybeMesh.ok() || mesh == nullptr) {
-            *outErr = "Failed to decode mesh from Draco stream.";
-            return false;
+        std::unique_ptr<draco::Mesh> mesh;
+
+        // Scope to delete decoder before translation, to reduce peak memory.
+        {
+            draco::Decoder decoder;
+            draco::StatusOr<std::unique_ptr<draco::Mesh>> maybeMesh =
+                decoder.DecodeMeshFromBuffer(&buffer);
+            mesh = std::move(maybeMesh).value();
+            if (!maybeMesh.ok() || mesh == nullptr) {
+                *outErr = "Failed to decode mesh from Draco stream.";
+                return false;
+            }
         }
+
         // Translate Draco mesh to USD.
         dracoAsUsd = UsdDracoImportTranslator::Translate(*mesh.get());
     }
