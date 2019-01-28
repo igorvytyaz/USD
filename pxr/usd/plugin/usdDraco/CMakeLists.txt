@@ -8,7 +8,7 @@ pxr_plugin(${PXR_PACKAGE}
         sdf
         usd
         usdGeom
-        draco
+	${DRACO_LIBRARY}
 
     INCLUDE_DIRS
         ${Boost_INCLUDE_DIRS}
