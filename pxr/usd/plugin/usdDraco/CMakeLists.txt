@@ -1,6 +1,11 @@
 set(PXR_PREFIX pxr/usd)
 set(PXR_PACKAGE usdDraco)
 
+if(WIN32 AND NOT CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS)
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS 1)
+  set(USD_DRACO_SET_WINDOWS_EXPORT 1)
+endif()
+
 pxr_plugin(${PXR_PACKAGE}
     LIBRARIES
         tf
@@ -8,7 +13,7 @@ pxr_plugin(${PXR_PACKAGE}
         sdf
         usd
         usdGeom
-	${DRACO_LIBRARY}
+        ${DRACO_LIBRARY}
 
     INCLUDE_DIRS
         ${Boost_INCLUDE_DIRS}
@@ -34,4 +39,8 @@ pxr_plugin(${PXR_PACKAGE}
     RESOURCE_FILES
         plugInfo.json
 )
+
+if(USD_DRACO_SET_WINDOWS_EXPORT)
+  unset(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS)
+endif()
 
