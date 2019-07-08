@@ -124,7 +124,7 @@ bool UsdDracoFileFormat::Read(
         const SdfLayerBasePtr &layerBase, const std::string &resolvedPath,
         bool metadataOnly) const {
     // Open the file with Draco data.
-    std::ifstream fin(resolvedPath.c_str());
+    std::ifstream fin(resolvedPath.c_str(), std::ios::binary);
     if (!fin.is_open()) {
         TF_RUNTIME_ERROR("Failed to open file \"%s\"", resolvedPath.c_str());
         return false;
