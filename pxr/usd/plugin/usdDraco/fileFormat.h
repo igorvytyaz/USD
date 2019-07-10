@@ -44,7 +44,6 @@ PXR_NAMESPACE_OPEN_SCOPE
 TF_DECLARE_PUBLIC_TOKENS(UsdDracoFileFormatTokens, USDDRACO_FILE_FORMAT_TOKENS);
 TF_DECLARE_WEAK_AND_REF_PTRS(UsdDracoFileFormat);
 
-
 /// \class UsdDracoFileFormat
 ///
 /// Adds support for ireading Draco *.drc files.
