@@ -66,6 +66,13 @@ HdxPackageRenderPassIdShader()
 }
 
 TfToken
+HdxPackageRenderPassPickingShader()
+{
+    static TfToken shader = _GetShaderPath("renderPassPickingShader.glslfx");
+    return shader;
+}
+
+TfToken
 HdxPackageRenderPassShadowShader()
 {
     static TfToken shader = _GetShaderPath("renderPassShadowShader.glslfx");
@@ -78,6 +85,27 @@ HdxPackageSimpleLightingShader()
     static TfToken simpleLightingShader =
         _GetShaderPath("simpleLightingShader.glslfx");
     return simpleLightingShader;
+}
+
+TfToken
+HdxPackageColorCorrectionShader()
+{
+    static TfToken shader = _GetShaderPath("colorCorrection.glslfx");
+    return shader;
+}
+
+TfToken
+HdxPackageRenderPassOitShader()
+{
+    static TfToken shader = _GetShaderPath("renderPassOitShader.glslfx");
+    return shader;
+}
+
+TfToken
+HdxPackageOitResolveImageShader()
+{
+    static TfToken shader = _GetShaderPath("oitResolveImageShader.glslfx");
+    return shader;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

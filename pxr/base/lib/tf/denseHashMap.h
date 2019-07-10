@@ -29,12 +29,12 @@
 #include "pxr/pxr.h"
 #include "pxr/base/tf/hashmap.h"
 
+#include <memory>
 #include <vector>
 
 #include <boost/compressed_pair.hpp>
 #include <boost/operators.hpp>
 #include <boost/iterator/iterator_facade.hpp>
-#include <boost/scoped_ptr.hpp>
 #include <boost/utility.hpp>
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -105,6 +105,7 @@ private:
         }
 
         void swap(_InternalValueType &rhs) {
+            using std::swap;
 
             // We do this in order to take advantage of a potentially fast
             // swap implementation.
@@ -116,7 +117,7 @@ private:
             rhs._value.first.Key::~Key();
             new (const_cast<Key *>(&rhs._value.first)) Key(tmp);
 
-            std::swap(_value.second, rhs._value.second);
+            swap(_value.second, rhs._value.second);
         }
 
     private:
@@ -235,6 +236,12 @@ public:
         insert(begin, end);
     }
 
+    /// Construct from an initializer_list.
+    ///
+    TfDenseHashMap(std::initializer_list<value_type> l) {
+        insert(l.begin(), l.end());
+    }
+
     /// Copy Ctor.
     ///
     TfDenseHashMap(const TfDenseHashMap &rhs)
@@ -247,6 +254,14 @@ public:
     ///
     TfDenseHashMap &operator=(TfDenseHashMap rhs) {
         swap(rhs);
+        return *this;
+    }
+
+    /// Assignment from an initializer_list.
+    ///
+    TfDenseHashMap &operator=(std::initializer_list<value_type> l) {
+        clear();
+        insert(l.begin(), l.end());
         return *this;
     }
 
@@ -450,7 +465,7 @@ public:
             typename _Vector::iterator vi = iter._GetUnderlyingIterator();
     
             // ... move the last element into the erased placed.
-            std::swap(*vi, _vec().back());
+            vi->swap(_vec().back());
     
             // ... and update the moved element's index.
             if (_h)
@@ -599,7 +614,7 @@ private:
     _VectorHashFnEqualFn _vectorHashFnEqualFn;
 
     // Optional hash map that maps from keys to vector indices.
-    boost::scoped_ptr<_HashMap> _h;
+    std::unique_ptr<_HashMap> _h;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

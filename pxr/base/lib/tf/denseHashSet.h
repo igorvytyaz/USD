@@ -29,12 +29,12 @@
 #include "pxr/pxr.h"
 #include "pxr/base/tf/hashmap.h"
 
+#include <memory>
 #include <vector>
 
 #include <boost/compressed_pair.hpp>
 #include <boost/operators.hpp>
 #include <boost/iterator/iterator_facade.hpp>
-#include <boost/scoped_ptr.hpp>
 #include <boost/utility.hpp>
 
 #include <cstdio>
@@ -119,10 +119,24 @@ public:
         insert(begin, end);
     }
 
+    /// Construct from an initializer_list.
+    ///
+    TfDenseHashSet(std::initializer_list<Element> l) {
+        insert(l.begin(), l.end());
+    }
+
     /// Assignment operator.
     ///
     TfDenseHashSet &operator=(TfDenseHashSet rhs) {
         swap(rhs);
+        return *this;
+    }
+
+    /// Assignment from an initializer_list.
+    ///
+    TfDenseHashSet &operator=(std::initializer_list<Element> l) {
+        clear();
+        insert(l.begin(), l.end());
         return *this;
     }
 
@@ -294,11 +308,12 @@ public:
     
         // If we are not removing that last element...
         if (iter != std::prev(end())) {
-    
+            using std::swap;
+
             // ... move the last element into the erased placed.
             // Note that we can cast constness away because we explicitly update
             // the TfHashMap _h below.
-            std::swap(*const_cast<Element *>(&(*iter)), _vec().back());
+            swap(*const_cast<Element *>(&(*iter)), _vec().back());
     
             // ... and update the moved element's index.
             if (_h)
@@ -423,7 +438,7 @@ private:
     _VectorHashFnEqualFn _vectorHashFnEqualFn;
 
     // Optional hash map that maps from keys to vector indices.
-    boost::scoped_ptr<_HashMap> _h;
+    std::unique_ptr<_HashMap> _h;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE

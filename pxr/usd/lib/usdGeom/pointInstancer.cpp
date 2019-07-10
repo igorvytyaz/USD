@@ -317,7 +317,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 // XXX Bug 139215: When we enable this, we can remove
 // SdfListOp::ComposeOperations().
 TF_DEFINE_ENV_SETTING(
-    USDGEOM_POINTINSTANCER_NEW_APPLYOPS, false,
+    USDGEOM_POINTINSTANCER_NEW_APPLYOPS, true,
     "Set to true to use SdfListOp::ApplyOperations() instead of "
     "ComposeOperations().");
 
@@ -513,7 +513,8 @@ UsdGeomPointInstancer::VisAllIds(UsdTimeCode const &time) const
 {
     VtInt64Array invised(0);
 
-    if (GetInvisibleIdsAttr().HasAuthoredValueOpinion())
+    if (GetInvisibleIdsAttr().HasAuthoredValue())
+        // We _could_ just block the attr instead. Better?
         return CreateInvisibleIdsAttr().Set(invised, time);
 
     return true;

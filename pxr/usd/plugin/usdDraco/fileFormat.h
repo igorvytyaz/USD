@@ -43,8 +43,6 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 TF_DECLARE_PUBLIC_TOKENS(UsdDracoFileFormatTokens, USDDRACO_FILE_FORMAT_TOKENS);
 TF_DECLARE_WEAK_AND_REF_PTRS(UsdDracoFileFormat);
-TF_DECLARE_WEAK_AND_REF_PTRS(SdfLayerBase);
-
 
 /// \class UsdDracoFileFormat
 ///
@@ -54,17 +52,17 @@ class UsdDracoFileFormat : public SdfFileFormat {
 public:
 
     virtual bool CanRead(const std::string &file) const;
-    virtual bool Read(const SdfLayerBasePtr &layerBase,
+    virtual bool Read(SdfLayer *layer,
                       const std::string &resolvedPath,
                       bool metadataOnly) const;
-    virtual bool ReadFromString(const SdfLayerBasePtr &layerBase,
+    virtual bool ReadFromString(SdfLayer *layer,
                                 const std::string &str) const;
-    virtual bool WriteToFile(const SdfLayerBase *layerBase,
+    virtual bool WriteToFile(const SdfLayer &layer,
                              const std::string &filePath,
                              const std::string &comment = std::string(),
                              const FileFormatArguments &args =
                                  FileFormatArguments()) const;
-    virtual bool WriteToString(const SdfLayerBase *layerBase,
+    virtual bool WriteToString(const SdfLayer &layer,
                                std::string *str,
                                const std::string &comment=std::string()) const;
     virtual bool WriteToStream(const SdfSpecHandle &spec,
@@ -78,12 +76,12 @@ protected:
     UsdDracoFileFormat();
 
 private:
-    bool _ReadFromStream(const SdfLayerBasePtr &layerBase,
+    bool _ReadFromStream(SdfLayer *layer,
                          const std::string &str,
                          bool metadataOnly,
                          std::string *outErr) const;
 
-    virtual bool _IsStreamingLayer(const SdfLayerBase &layer) const {
+    virtual bool _IsStreamingLayer(const SdfLayer &layer) const {
         return false;
     }
 };

@@ -87,11 +87,11 @@ class TestUsdBugs(unittest.TestCase):
         x = Sdf.CreatePrimInLayer(l1, '/x')
         x.instanceable = True
         x.specifier = Sdf.SpecifierDef
-        x.payload = Sdf.Payload(l2.identifier, '/xpay')
+        x.payloadList.explicitItems.append(Sdf.Payload(l2.identifier, '/xpay'))
 
         y = Sdf.CreatePrimInLayer(l1, '/x/y')
         y.specifier = Sdf.SpecifierDef
-        y.payload = Sdf.Payload(l2.identifier, '/ypay')
+        x.payloadList.explicitItems.append(Sdf.Payload(l2.identifier, '/ypay'))
 
         s = Usd.Stage.Open(l1, Usd.Stage.LoadAll)
 
@@ -356,10 +356,10 @@ class TestUsdBugs(unittest.TestCase):
         Sdf.CreatePrimInLayer(
             l2, '/cam/cam_payload').specifier = Sdf.SpecifierDef
 
-        l1.GetPrimAtPath('/shot/camera/cache').payload = Sdf.Payload(
-            l2.identifier, '/cam_extra')
-        l1.GetPrimAtPath('/shot/camera/cache/cam').payload = Sdf.Payload(
-            l2.identifier, '/cam')
+        l1.GetPrimAtPath('/shot/camera/cache').payloadList.Prepend(
+            Sdf.Payload(l2.identifier, '/cam_extra'))
+        l1.GetPrimAtPath('/shot/camera/cache/cam').payloadList.Prepend(
+            Sdf.Payload(l2.identifier, '/cam'))
         
         stage = Usd.Stage.Open(l1)
         stage.SetEditTarget(stage.GetSessionLayer())
@@ -374,6 +374,113 @@ class TestUsdBugs(unittest.TestCase):
         cameraPayloadPrim = stage.GetPrimAtPath(
             '/shot/camera/cache/cam/cam_payload')
         self.assertTrue(cameraPayloadPrim.IsValid())
+
+    def test_USD_4936(self):
+        # Test that relationships resolve correctly with nested instancing and
+        # instance proxies within masters.
+        from pxr import Usd, Sdf
+        l1 = Sdf.Layer.CreateAnonymous('.usd')
+        l1.ImportFromString('''#usda 1.0
+            def "W" {
+                def "A" (
+                    instanceable = true
+                    prepend references = </M>
+                )
+                {
+                }
+            }
+
+            def "M" {
+                def "B" (
+                    instanceable = true
+                    prepend references = </M2>
+                )
+                {
+                }
+            }
+
+            def "M2" {
+                rel r = </M2/D>
+                def "D" {
+                }
+            }''')
+        stage = Usd.Stage.Open(l1)
+        wab = stage.GetPrimAtPath('/W/A/B')
+        # prior to fixing this bug, the resulting target would be '/W/A/B/B/D'.
+        self.assertEqual(wab.GetRelationship('r').GetTargets(), [Sdf.Path('/W/A/B/D')])
+
+    def test_USD_5196(self):
+        from pxr import Usd, Sdf, Vt, Tf
+        import os, random
+        # Test that usdc files corrupted by truncation (such that the table of
+        # contents is past the end of the file) are detected and fail to open
+        # with an error.
+        with Tf.NamedTemporaryFile(suffix=".usdc") as f:
+            layer = Sdf.Layer.CreateNew(f.name)
+            foo = Sdf.CreatePrimInLayer(layer, '/foo')
+            attr = Sdf.AttributeSpec(foo, 'attr', Sdf.ValueTypeNames.IntArray)
+            ints = range(1024**2)
+            random.shuffle(ints)
+            attr.default = Vt.IntArray(ints)
+            layer.Save()
+            del layer
+            # Now truncate layer to corrupt it.
+            fobj = open(f.name, "rw+")
+            size = os.path.getsize(f.name)
+            fobj.truncate(size / 2)
+            fobj.close()
+            # Attempting to open the file should raise an exception.
+            with self.assertRaises(Tf.ErrorException):
+                layer = Sdf.Layer.FindOrOpen(f.name)
+
+    def test_USD_5045(self):
+        # USD-5045 is github issue #753
+        from pxr import Usd
+        nullPrim = Usd.Prim()
+        with self.assertRaises(RuntimeError):
+            nullPrim.IsDefined()
+
+    def test_PIPE_6232(self):
+        # This interaction between nested instancing, load/unload, activation,
+        # and inherits triggered a corruption of instancing data structures and
+        # ultimately a crash bug in the USD core.
+        from pxr import Usd, Sdf
+        l = Sdf.Layer.CreateAnonymous('.usda')
+        l.ImportFromString('''#usda 1.0
+def "outerM" ( instanceable = true )
+{
+    def "inner" ( payload = </innerM> )
+    {
+    }
+}
+def "innerM" (
+    instanceable = true
+    inherits = </_someClass>
+)
+{
+}
+def "World"
+{
+    def "i" ( prepend references = </outerM> )
+    {
+    }
+}
+def "OtherWorld"
+{
+    def "i" ( prepend references = </outerM> )
+    {
+    }
+}''')
+        s = Usd.Stage.Open(l, load=Usd.Stage.LoadNone)
+        # === Load /World/i ===
+        s.Load('/World/i')
+        # === Deactivate /World ==='
+        s.GetPrimAtPath('/World').SetActive(False)
+        # === Create class /_someClass ==='
+        s.CreateClassPrim('/_someClass')
+        p = s.GetPrimAtPath('/OtherWorld/i/inner')
+        self.assertTrue(p.IsInstance())
+        self.assertTrue(p.GetMaster())
 
 if __name__ == '__main__':
     unittest.main()

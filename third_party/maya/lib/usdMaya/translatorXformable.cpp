@@ -28,27 +28,36 @@
 #include "usdMaya/translatorUtil.h"
 #include "usdMaya/xformStack.h"
 
+#include "pxr/base/gf/math.h"
+#include "pxr/base/gf/matrix4d.h"
+#include "pxr/base/gf/vec3d.h"
 #include "pxr/base/tf/token.h"
-#include "pxr/usd/usdGeom/xformable.h"
-#include "pxr/usd/usdGeom/xform.h"
 #include "pxr/usd/usd/stage.h"
-
+#include "pxr/usd/usd/timeCode.h"
+#include "pxr/usd/usdGeom/xform.h"
 #include "pxr/usd/usdGeom/xformCommonAPI.h"
+#include "pxr/usd/usdGeom/xformable.h"
 
 #include <maya/MDagModifier.h>
-#include <maya/MFnAnimCurve.h>
-#include <maya/MFnTransform.h>
 #include <maya/MEulerRotation.h>
+#include <maya/MFnAnimCurve.h>
+#include <maya/MFnDependencyNode.h>
+#include <maya/MFnTransform.h>
+#include <maya/MMatrix.h>
 #include <maya/MPlug.h>
+#include <maya/MStatus.h>
+#include <maya/MString.h>
+#include <maya/MTime.h>
 #include <maya/MTransformationMatrix.h>
 #include <maya/MVector.h>
-#include <maya/MFnDependencyNode.h>
 
-#include <boost/assign/list_of.hpp>
 #include <algorithm>
 #include <unordered_map>
+#include <vector>
+
 
 PXR_NAMESPACE_OPEN_SCOPE
+
 
 // This function retrieves a value for a given xformOp and given time sample. It
 // knows how to deal with different type of ops and angle conversion
@@ -168,10 +177,10 @@ static bool _isArrayVarying(std::vector<double> &value)
 // double arrays and then if the array is varying defines an anym curve for the
 // attribute
 static void _setMayaAttribute(
-        MFnDagNode &depFn, 
-        std::vector<double> &xVal, std::vector<double> &yVal, std::vector<double> &zVal, 
-        MTimeArray &timeArray, 
-        const MString& opName, 
+        MFnDagNode &depFn,
+        std::vector<double> &xVal, std::vector<double> &yVal, std::vector<double> &zVal,
+        MTimeArray &timeArray,
+        const MString& opName,
         const MString& x, const MString& y, const MString& z,
         const UsdMayaPrimReaderContext* context)
 {
@@ -202,7 +211,7 @@ static void _setMayaAttribute(
 // For each xformop, we gather it's data either time sampled or not and we push
 // it to the corresponding Maya xform
 static bool _pushUSDXformOpToMayaXform(
-        const UsdGeomXformOp& xformop, 
+        const UsdGeomXformOp& xformop,
         const TfToken& opName,
         MFnDagNode &MdagNode,
         const UsdMayaPrimReaderArgs& args,
@@ -227,14 +236,14 @@ static bool _pushUSDXformOpToMayaXform(
             if (_getXformOpAsVec3d(xformop, value, time)) {
                 xValue[ti]=value[0]; yValue[ti]=value[1]; zValue[ti]=value[2];
                 timeArray.set(MTime(timeSamples[ti]), ti);
-            } 
+            }
             else {
                 TF_RUNTIME_ERROR(
                         "Missing sampled data on xformOp: %s",
                         xformop.GetName().GetText());
             }
         }
-    } 
+    }
     else {
         // pick the first available sample or default
         UsdTimeCode time=UsdTimeCode::EarliestTime();
@@ -243,7 +252,7 @@ static bool _pushUSDXformOpToMayaXform(
             yValue.resize(1);
             zValue.resize(1);
             xValue[0]=value[0]; yValue[0]=value[1]; zValue[0]=value[2];
-        } 
+        }
         else {
             TF_RUNTIME_ERROR(
                     "Missing default data on xformOp: %s",
@@ -253,7 +262,7 @@ static bool _pushUSDXformOpToMayaXform(
     if (!xValue.empty()) {
         if (opName==UsdMayaXformStackTokens->shear) {
             _setMayaAttribute(MdagNode, xValue, yValue, zValue, timeArray, MString(opName.GetText()), "XY", "XZ", "YZ", context);
-        } 
+        }
         else if (opName==UsdMayaXformStackTokens->pivot) {
             _setMayaAttribute(MdagNode, xValue, yValue, zValue, timeArray, MString("rotatePivot"), "X", "Y", "Z", context);
             _setMayaAttribute(MdagNode, xValue, yValue, zValue, timeArray, MString("scalePivot"), "X", "Y", "Z", context);
@@ -303,101 +312,166 @@ static bool _pushUSDXformOpToMayaXform(
             _setMayaAttribute(MdagNode, xValue, yValue, zValue, timeArray, MString(opName.GetText()), "X", "Y", "Z", context);
         }
         return true;
-    } 
+    }
 
     return false;
 }
 
 // Simple function that determines if the matrix is identity
 // XXX Maybe there is something already in Gf but couldn't see it
-static bool _isIdentityMatrix(GfMatrix4d m)
+static
+bool
+_isIdentityMatrix(const GfMatrix4d& m)
 {
-    bool isIdentity=true;
-    for (unsigned int i=0; i<4; i++) {
-        for (unsigned int j=0; j<4; j++) {
-            if ((i==j && !GfIsClose(m[i][j], 1.0, 1e-9)) ||
-                (i!=j && !GfIsClose(m[i][j], 0.0, 1e-9))) {
-                isIdentity=false; break;
-            }
-        }
-    }
-    return isIdentity;
+    static const GfMatrix4d identityMatrix(1.0);
+    static constexpr double tolerance = 1e-9;
+
+    return GfIsClose(m, identityMatrix, tolerance);
 }
 
 // For each xformop, we gather it's data either time sampled or not and we push it to the corresponding Maya xform
 static bool _pushUSDXformToMayaXform(
-        const UsdGeomXformable &xformSchema, 
+        const UsdGeomXformable &xformSchema,
         MFnDagNode &MdagNode,
         const UsdMayaPrimReaderArgs& args,
         const UsdMayaPrimReaderContext* context)
 {
-    std::vector<double> TxVal, TyVal, TzVal;
-    std::vector<double> RxVal, RyVal, RzVal;
-    std::vector<double> SxVal, SyVal, SzVal;
-    GfVec3d xlate, rotate, scale; 
-    bool resetsXformStack; 
-    GfMatrix4d localXform(1.0);
+    std::vector<double> timeSamples;
+    xformSchema.GetTimeSamplesInInterval(args.GetTimeInterval(), &timeSamples);
 
-    std::vector<double> tSamples;
-    xformSchema.GetTimeSamplesInInterval(args.GetTimeInterval(), &tSamples);
+    std::vector<UsdTimeCode> timeCodes;
     MTimeArray timeArray;
-    if (!tSamples.empty()) {
-        timeArray.setLength(tSamples.size());
-        TxVal.resize(tSamples.size()); TyVal.resize(tSamples.size()); TzVal.resize(tSamples.size());
-        RxVal.resize(tSamples.size()); RyVal.resize(tSamples.size()); RzVal.resize(tSamples.size());
-        SxVal.resize(tSamples.size()); SyVal.resize(tSamples.size()); SzVal.resize(tSamples.size());
-        for (unsigned int ti=0; ti < tSamples.size(); ++ti) {
-            UsdTimeCode time(tSamples[ti]);
-            if (xformSchema.GetLocalTransformation(&localXform, 
-                                                   &resetsXformStack,
-                                                   time)) {
-                xlate=GfVec3d(0); rotate=GfVec3d(0); scale=GfVec3d(1);
-                if (!_isIdentityMatrix(localXform)) {
-                     UsdMayaTranslatorXformable::ConvertUsdMatrixToComponents(
-                             localXform, &xlate, &rotate, &scale);
-                }
-                TxVal[ti]=xlate [0]; TyVal[ti]=xlate [1]; TzVal[ti]=xlate [2];
-                RxVal[ti]=rotate[0]; RyVal[ti]=rotate[1]; RzVal[ti]=rotate[2];
-                SxVal[ti]=scale [0]; SyVal[ti]=scale [1]; SzVal[ti]=scale [2];
-                timeArray.set(MTime(tSamples[ti]), ti);
-            } 
-            else {
+
+    if (!timeSamples.empty()) {
+        // Convert all the time samples to UsdTimeCodes.
+        std::transform(
+            timeSamples.cbegin(),
+            timeSamples.cend(),
+            std::back_inserter(timeCodes),
+            [](const double timeSample) {
+                return UsdTimeCode(timeSample);
+            }
+        );
+
+        timeArray.setLength(timeCodes.size());
+    } else {
+        // If there were no time samples, we'll just use the default time and
+        // leave the MTimeArray empty.
+        timeCodes.push_back(UsdTimeCode::Default());
+    }
+
+    // Storage for all of the components of the Maya transform attributes. Maya
+    // only allows double-valued animation curves, so we store each channel
+    // independently.
+    std::vector<double> TxVal(timeCodes.size());
+    std::vector<double> TyVal(timeCodes.size());
+    std::vector<double> TzVal(timeCodes.size());
+    std::vector<double> RxVal(timeCodes.size());
+    std::vector<double> RyVal(timeCodes.size());
+    std::vector<double> RzVal(timeCodes.size());
+    std::vector<double> SxVal(timeCodes.size());
+    std::vector<double> SyVal(timeCodes.size());
+    std::vector<double> SzVal(timeCodes.size());
+    std::vector<double> ShearXYVal(timeCodes.size());
+    std::vector<double> ShearXZVal(timeCodes.size());
+    std::vector<double> ShearYZVal(timeCodes.size());
+
+    for (size_t ti = 0u; ti < timeCodes.size(); ++ti) {
+        const UsdTimeCode& timeCode = timeCodes[ti];
+
+        GfMatrix4d usdLocalTransform(1.0);
+        bool resetsXformStack;
+        if (!xformSchema.GetLocalTransformation(
+                &usdLocalTransform,
+                &resetsXformStack,
+                timeCode)) {
+            if (timeCode.IsDefault()) {
                 TF_RUNTIME_ERROR(
-                        "Missing sampled xform data on USD prim <%s>",
-                        xformSchema.GetPath().GetText());
-            }
-        }
-    } 
-    else {
-        if (xformSchema.GetLocalTransformation(&localXform, &resetsXformStack)) {
-            xlate=GfVec3d(0); rotate=GfVec3d(0); scale=GfVec3d(1);
-            if (!_isIdentityMatrix(localXform)) {
-                // XXX if we want to support the old pivotPosition, we can pass
-                // it into this function..
-                UsdMayaTranslatorXformable::ConvertUsdMatrixToComponents(
-                        localXform, &xlate, &rotate, &scale);
-            }
-            TxVal.resize(1); TyVal.resize(1); TzVal.resize(1);
-            RxVal.resize(1); RyVal.resize(1); RzVal.resize(1);
-            SxVal.resize(1); SyVal.resize(1); SzVal.resize(1);
-            TxVal[0]=xlate [0]; TyVal[0]=xlate [1]; TzVal[0]=xlate [2];
-            RxVal[0]=rotate[0]; RyVal[0]=rotate[1]; RzVal[0]=rotate[2];
-            SxVal[0]=scale [0]; SyVal[0]=scale [1]; SzVal[0]=scale [2];
-        } 
-        else {
-            TF_RUNTIME_ERROR(
-                    "Missing default xform data on USD prim <%s>",
+                    "Missing xform data at the default time on USD prim <%s>",
                     xformSchema.GetPath().GetText());
+            } else {
+                TF_RUNTIME_ERROR(
+                    "Missing xform data at time %f on USD prim <%s>",
+                    timeCode.GetValue(),
+                    xformSchema.GetPath().GetText());
+            }
+
+            continue;
+        }
+
+        MVector translation(0, 0, 0);
+        MVector rotation(0, 0, 0);
+        MVector scale(1, 1, 1);
+        MVector shear(0, 0, 0);
+
+        if (!_isIdentityMatrix(usdLocalTransform)) {
+            double usdLocalTransformData[4u][4u];
+            usdLocalTransform.Get(usdLocalTransformData);
+            const MMatrix localMatrix(usdLocalTransformData);
+            const MTransformationMatrix localTransformationMatrix(localMatrix);
+
+            double tempVec[3u];
+            MStatus status;
+
+            translation =
+                localTransformationMatrix.getTranslation(
+                    MSpace::kTransform,
+                    &status);
+            CHECK_MSTATUS(status);
+
+            status =
+                localTransformationMatrix.getScale(
+                    tempVec,
+                    MSpace::kTransform);
+            CHECK_MSTATUS(status);
+            scale = MVector(tempVec);
+
+            MTransformationMatrix::RotationOrder rotateOrder;
+            status =
+                localTransformationMatrix.getRotation(
+                    tempVec,
+                    rotateOrder);
+            CHECK_MSTATUS(status);
+            rotation = MVector(tempVec);
+
+            status =
+                localTransformationMatrix.getShear(
+                    tempVec,
+                    MSpace::kTransform);
+            CHECK_MSTATUS(status);
+            shear = MVector(tempVec);
+        }
+
+        TxVal[ti] = translation[0];
+        TyVal[ti] = translation[1];
+        TzVal[ti] = translation[2];
+
+        RxVal[ti] = rotation[0];
+        RyVal[ti] = rotation[1];
+        RzVal[ti] = rotation[2];
+
+        SxVal[ti] = scale[0];
+        SyVal[ti] = scale[1];
+        SzVal[ti] = scale[2];
+
+        ShearXYVal[ti] = shear[0];
+        ShearXZVal[ti] = shear[1];
+        ShearYZVal[ti] = shear[2];
+
+        if (!timeCode.IsDefault()) {
+            timeArray.set(MTime(timeCode.GetValue()), ti);
         }
     }
 
     // All of these vectors should have the same size and greater than 0 to set their values
-    if (TxVal.size()==TyVal.size() && TxVal.size()==TzVal.size() && !TxVal.empty()) {
+    if (TxVal.size() == TyVal.size() && TxVal.size() == TzVal.size() && !TxVal.empty()) {
         _setMayaAttribute(MdagNode, TxVal, TyVal, TzVal, timeArray, MString("translate"), "X", "Y", "Z", context);
         _setMayaAttribute(MdagNode, RxVal, RyVal, RzVal, timeArray, MString("rotate"), "X", "Y", "Z", context);
         _setMayaAttribute(MdagNode, SxVal, SyVal, SzVal, timeArray, MString("scale"), "X", "Y", "Z", context);
+        _setMayaAttribute(MdagNode, ShearXYVal, ShearXZVal, ShearYZVal, timeArray, MString("shear"), "XY", "XZ", "YZ", context);
+
         return true;
-    } 
+    }
 
     return false;
 }
@@ -423,7 +497,7 @@ UsdMayaTranslatorXformable::Read(
     bool resetsXformStack= false;
     std::vector<UsdGeomXformOp> xformops = xformSchema.GetOrderedXformOps(
         &resetsXformStack);
-            
+
     // When we find ops, we match the ops by suffix ("" will define the basic
     // translate, rotate, scale) and by order. If we find an op with a
     // different name or out of order that will miss the match, we will rely on
@@ -466,6 +540,4 @@ UsdMayaTranslatorXformable::Read(
 }
 
 
-
 PXR_NAMESPACE_CLOSE_SCOPE
-

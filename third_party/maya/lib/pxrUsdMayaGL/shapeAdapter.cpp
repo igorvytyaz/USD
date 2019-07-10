@@ -35,6 +35,9 @@
 #include "pxr/base/gf/matrix4d.h"
 #include "pxr/base/gf/vec4f.h"
 #include "pxr/base/tf/debug.h"
+#include "pxr/base/tf/stringUtils.h"
+#include "pxr/base/tf/token.h"
+#include "pxr/imaging/hd/repr.h"
 #include "pxr/imaging/hd/rprimCollection.h"
 #include "pxr/usd/sdf/path.h"
 
@@ -44,10 +47,14 @@
 #include <maya/MDagPath.h>
 #include <maya/MDrawData.h>
 #include <maya/MDrawRequest.h>
+#include <maya/MFnDependencyNode.h>
 #include <maya/MFrameContext.h>
 #include <maya/MHWGeometryUtilities.h>
+#include <maya/MObject.h>
 #include <maya/MPxSurfaceShapeUI.h>
 #include <maya/MSelectionList.h>
+#include <maya/MStatus.h>
+#include <maya/MUuid.h>
 #include <maya/MUserData.h>
 
 
@@ -181,7 +188,7 @@ PxrMayaHdShapeAdapter::Sync(
 
 /* virtual */
 bool
-PxrMayaHdShapeAdapter::UpdateVisibility(const MSelectionList&)
+PxrMayaHdShapeAdapter::UpdateVisibility(const M3dView* view)
 {
     return false;
 }
@@ -260,6 +267,87 @@ PxrMayaHdShapeAdapter::GetMayaUserData(
 }
 
 /* virtual */
+HdReprSelector
+PxrMayaHdShapeAdapter::GetReprSelectorForDisplayState(
+        const unsigned int displayStyle,
+        const MHWRender::DisplayStatus displayStatus) const
+{
+    HdReprSelector reprSelector;
+
+    const bool boundingBoxStyle =
+        displayStyle & MHWRender::MFrameContext::DisplayStyle::kBoundingBox;
+
+    if (boundingBoxStyle) {
+        // We don't currently use Hydra to draw bounding boxes, so we return an
+        // empty repr selector here. Also, Maya seems to ignore most other
+        // DisplayStyle bits when the viewport is in the kBoundingBox display
+        // style anyway, and it just changes the color of the bounding box on
+        // selection rather than adding in the wireframe like it does for
+        // shaded display styles. So if we eventually do end up using Hydra for
+        // bounding boxes, we could just return the appropriate repr here.
+        return reprSelector;
+    }
+
+    const bool shadeActiveOnlyStyle =
+        displayStyle & MHWRender::MFrameContext::DisplayStyle::kShadeActiveOnly;
+
+    const bool isActive =
+        (displayStatus == MHWRender::DisplayStatus::kActive) ||
+        (displayStatus == MHWRender::DisplayStatus::kHilite) ||
+        (displayStatus == MHWRender::DisplayStatus::kActiveTemplate) ||
+        (displayStatus == MHWRender::DisplayStatus::kActiveComponent) ||
+        (displayStatus == MHWRender::DisplayStatus::kLead);
+
+    const bool wireframeStyle =
+        displayStyle & MHWRender::MFrameContext::DisplayStyle::kWireFrame;
+
+    // The kFlatShaded display style was introduced in Maya 2016.
+    const bool flatShadedStyle =
+#if MAYA_API_VERSION >= 201600
+        displayStyle & MHWRender::MFrameContext::DisplayStyle::kFlatShaded;
+#else
+        false;
+#endif
+
+    if (flatShadedStyle) {
+        if (!shadeActiveOnlyStyle || isActive) {
+            if (wireframeStyle) {
+                reprSelector = HdReprSelector(HdReprTokens->wireOnSurf);
+            } else {
+                reprSelector = HdReprSelector(HdReprTokens->hull);
+            }
+        } else {
+            // We're in shadeActiveOnly mode but this shape is not active.
+            reprSelector = HdReprSelector(HdReprTokens->wire);
+        }
+    }
+    else if (displayStyle & MHWRender::MFrameContext::DisplayStyle::kGouraudShaded) {
+        if (!shadeActiveOnlyStyle || isActive) {
+            if (wireframeStyle) {
+                reprSelector = HdReprSelector(HdReprTokens->refinedWireOnSurf);
+            } else {
+                reprSelector = HdReprSelector(HdReprTokens->refined);
+            }
+        } else {
+            // We're in shadeActiveOnly mode but this shape is not active.
+            reprSelector = HdReprSelector(HdReprTokens->refinedWire);
+        }
+    }
+    else if (wireframeStyle) {
+        reprSelector = HdReprSelector(HdReprTokens->refinedWire);
+    }
+    else if (displayStyle & MHWRender::MFrameContext::DisplayStyle::kTwoSidedLighting) {
+        // The UV editor uses the kTwoSidedLighting displayStyle.
+        //
+        // For now, to prevent objects from completely disappearing, we just
+        // treat it similarly to kGouraudShaded.
+        reprSelector = HdReprSelector(HdReprTokens->refined);
+    }
+
+    return reprSelector;
+}
+
+/* virtual */
 PxrMayaHdRenderParams
 PxrMayaHdShapeAdapter::GetRenderParams(
         bool* drawShape,
@@ -289,6 +377,14 @@ PxrMayaHdShapeAdapter::GetRprimCollection() const
 {
     return _rprimCollection;
 }
+
+/* virtual */
+const TfTokenVector&
+PxrMayaHdShapeAdapter::GetRenderTags() const
+{
+    return _renderTags;
+}
+
 
 /* virtual */
 const GfMatrix4d&
@@ -325,6 +421,21 @@ PxrMayaHdShapeAdapter::IsViewport2() const
     return _isViewport2;
 }
 
+/* virtual */
+TfToken
+PxrMayaHdShapeAdapter::_GetRprimCollectionName() const
+{
+    MStatus status;
+    const MObject shapeObj = _shapeDagPath.node(&status);
+    CHECK_MSTATUS_AND_RETURN(status, TfToken());
+    const MFnDependencyNode depNodeFn(shapeObj, &status);
+    CHECK_MSTATUS_AND_RETURN(status, TfToken());
+    const MUuid shapeUuid = depNodeFn.uuid(&status);
+    CHECK_MSTATUS_AND_RETURN(status, TfToken());
+
+    return TfToken(TfMakeValidIdentifier(shapeUuid.asString().asChar()));
+}
+
 /* static */
 bool
 PxrMayaHdShapeAdapter::_GetWireframeColor(
@@ -357,12 +468,16 @@ PxrMayaHdShapeAdapter::_GetWireframeColor(
         MHWRender::MFrameContext::DisplayStyle::kWireFrame |
         MHWRender::MFrameContext::DisplayStyle::kBoundingBox);
 
-    if (displayStyle & wireframeDisplayStyles) {
-        useWireframeColor = true;
-    } else if ((displayStatus == MHWRender::kActive) ||
-               (displayStatus == MHWRender::kLead) ||
-               (displayStatus == MHWRender::kHilite) ||
-               (displayStatus == MHWRender::kActiveComponent)) {
+    const bool wireframeStyle = (displayStyle & wireframeDisplayStyles);
+
+    const bool isActive =
+        (displayStatus == MHWRender::DisplayStatus::kActive) ||
+        (displayStatus == MHWRender::DisplayStatus::kHilite) ||
+        (displayStatus == MHWRender::DisplayStatus::kActiveTemplate) ||
+        (displayStatus == MHWRender::DisplayStatus::kActiveComponent) ||
+        (displayStatus == MHWRender::DisplayStatus::kLead);
+
+    if (wireframeStyle || isActive) {
         useWireframeColor = true;
     }
 
@@ -370,9 +485,10 @@ PxrMayaHdShapeAdapter::_GetWireframeColor(
 }
 
 /* static */
-bool PxrMayaHdShapeAdapter::_GetVisibility(
+bool
+PxrMayaHdShapeAdapter::_GetVisibility(
         const MDagPath& dagPath,
-        const MSelectionList& isolatedObjects,
+        const M3dView* view,
         bool* visibility)
 {
     MStatus status;
@@ -397,6 +513,15 @@ bool PxrMayaHdShapeAdapter::_GetVisibility(
         *visibility = false;
         return true;
     }
+
+    // If a view was provided, check to see whether it is being filtered, and
+    // get its isolated objects if so.
+    MSelectionList isolatedObjects;
+#if MAYA_API_VERSION >= 201700
+    if (view && view->viewIsFiltered()) {
+        view->filteredObjectList(isolatedObjects);
+    }
+#endif
 
     // If non-empty, isolatedObjects contains the "root" isolated objects, so
     // we'll need to check to see if one of our ancestors was isolated. (The

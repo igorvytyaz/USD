@@ -40,6 +40,22 @@ PXR_NAMESPACE_OPEN_SCOPE
 ///
 typedef uint32_t HdDirtyBits;
 
+// GL Spec 2.3.5.2 (signed case, eq 2.4)
+inline int HdConvertFloatToFixed(float v, int b)
+{
+    return int(
+        std::round(
+            std::min(std::max(v, -1.0f), 1.0f) * (float(1 << (b-1)) - 1.0f)));
+}
+
+// GL Spec 2.3.5.1 (signed case, eq 2.2)
+inline float HdConvertFixedToFloat(int v, int b)
+{
+    return float(
+        std::max(-1.0f,
+            (v / (float(1 << (b-1)) - 1.0f))));
+}
+
 ///
 /// HdVec4f_2_10_10_10_REV is a compact representation of a GfVec4f.
 /// It uses 10 bits for x, y, and z, and 2 bits for w.
@@ -47,28 +63,37 @@ typedef uint32_t HdDirtyBits;
 /// XXX We expect this type to move again as we continue work on
 /// refactoring the GL dependencies.
 /// 
-struct HdVec4f_2_10_10_10_REV {
-    // we treat packed type as single-component values
-    static const size_t dimension = 1;
-
+struct HdVec4f_2_10_10_10_REV
+{
     HdVec4f_2_10_10_10_REV() { }
 
     template <typename Vec3Type>
     HdVec4f_2_10_10_10_REV(Vec3Type const &value) {
-        x = to10bits(value[0]);
-        y = to10bits(value[1]);
-        z = to10bits(value[2]);
+        x = HdConvertFloatToFixed(value[0], 10);
+        y = HdConvertFloatToFixed(value[1], 10);
+        z = HdConvertFloatToFixed(value[2], 10);
         w = 0;
     }
 
-    // ref. GL spec 2.3.5.2
-    //   Conversion from floating point to normalized fixed point
-    template <typename R>
-    int to10bits(R v) {
-        return int(
-            std::round(
-                std::min(std::max(v, static_cast<R>(-1)), static_cast<R>(1))
-                *static_cast<R>(511)));
+    HdVec4f_2_10_10_10_REV(int const value) {
+        HdVec4f_2_10_10_10_REV const* other =
+            reinterpret_cast<HdVec4f_2_10_10_10_REV const*>(&value);
+        x = other->x;
+        y = other->y;
+        z = other->z;
+        w = other->w;
+    }
+
+    template <typename Vec3Type>
+    Vec3Type GetAsVec() const {
+        return Vec3Type(HdConvertFixedToFloat(x, 10),
+                        HdConvertFixedToFloat(y, 10),
+                        HdConvertFixedToFloat(z, 10));
+    }
+
+    int GetAsInt() const {
+        int const* asInt = reinterpret_cast<int const*>(this);
+        return *asInt;
     }
 
     bool operator==(const HdVec4f_2_10_10_10_REV &other) const {
@@ -76,6 +101,9 @@ struct HdVec4f_2_10_10_10_REV {
                 other.z == z && 
                 other.y == y && 
                 other.x == x);
+    }
+    bool operator!=(const HdVec4f_2_10_10_10_REV &other) const {
+        return !(*this == other);
     }
 
     int x : 10;
@@ -260,11 +288,11 @@ size_t HdDataSizeOfTupleType(HdTupleType);
 /// It's similar to HdType but with more specific associated semantics.
 ///
 /// The list of supported formats is modelled after Vulkan and DXGI, though
-/// hydra only supports a subset.  Endian-ness is explicitly not captured;
+/// Hydra only supports a subset.  Endian-ness is explicitly not captured;
 /// color data is assumed to always be RGBA.
 ///
 /// For reference, see:
-///   https://vulkan.lunarg.com/doc/view/1.0.30.0/windows/vkspec.chunked/ch31s03.html
+///   https://www.khronos.org/registry/vulkan/specs/1.1/html/vkspec.html#VkFormat
 enum HdFormat
 {
     HdFormatInvalid=-1,
@@ -282,6 +310,12 @@ enum HdFormat
     HdFormatSNorm8Vec2,
     HdFormatSNorm8Vec3,
     HdFormatSNorm8Vec4,
+
+    // Float16 - a 2-byte IEEE half-precision float.
+    HdFormatFloat16,
+    HdFormatFloat16Vec2,
+    HdFormatFloat16Vec3,
+    HdFormatFloat16Vec4,
 
     // Float32 - a 4-byte IEEE float.
     HdFormatFloat32,

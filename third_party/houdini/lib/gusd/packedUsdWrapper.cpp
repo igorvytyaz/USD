@@ -39,9 +39,6 @@
 
 PXR_NAMESPACE_OPEN_SCOPE
 
-using std::cout;
-using std::cerr;
-using std::endl;
 using std::string;
 
 namespace {
@@ -160,7 +157,7 @@ doSoftCopy() const
 bool 
 GusdPackedUsdWrapper::isValid() const
 {
-    return m_primRef;
+    return static_cast<bool>(m_primRef);
 }
 
 // Recursively looks for ancestor path one below the root (ie "/<some prim>")
@@ -245,7 +242,7 @@ _rebindPrimAndChildren(UsdStageWeakPtr primStage, const SdfPath& primPath,
     // Recurse on all children of the referenced prim (same as children of the
     // prim we are writing because it is a reference...).
     UsdPrimSiblingRange refChidlren = refPrim.GetAllChildren();
-    for (UsdPrim refChild : refChidlren){
+    for (const UsdPrim& refChild : refChidlren){
         SdfPath childPrimPath = primPath.AppendPath(
                                         SdfPath(refChild.GetPath().GetName()));
         _rebindPrimAndChildren(primStage, childPrimPath, refChild,

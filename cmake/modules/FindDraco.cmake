@@ -25,4 +25,4 @@
 # provides the result by defining variable DRACO_LIBRARY.
 #
 
-find_library(DRACO_LIBRARY libdraco.a ${DRACO_ROOT})
+find_library(DRACO_LIBRARY draco.lib libdraco.a ${DRACO_ROOT})

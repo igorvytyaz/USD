@@ -66,14 +66,8 @@ bool UsdDracoFileFormat::CanRead(const std::string &filePath) const {
 }
 
 bool UsdDracoFileFormat::_ReadFromStream(
-        const SdfLayerBasePtr &layerBase, const std::string &str,
+        SdfLayer *layer, const std::string &str,
         bool metadataOnly, std::string *outErr) const {
-    SdfLayerHandle layer = TfDynamic_cast<SdfLayerHandle>(layerBase);
-    if (!TF_VERIFY(layer)) {
-        *outErr = "Invalid layer base.";
-        return false;
-    }
-
     // Create Draco decoder buffer from the given string.
     draco::DecoderBuffer buffer;
     buffer.Init(str.c_str(), str.size());
@@ -121,10 +115,10 @@ bool UsdDracoFileFormat::_ReadFromStream(
 }
 
 bool UsdDracoFileFormat::Read(
-        const SdfLayerBasePtr &layerBase, const std::string &resolvedPath,
+        SdfLayer *layer, const std::string &resolvedPath,
         bool metadataOnly) const {
     // Open the file with Draco data.
-    std::ifstream fin(resolvedPath.c_str());
+    std::ifstream fin(resolvedPath.c_str(), std::ios::binary);
     if (!fin.is_open()) {
         TF_RUNTIME_ERROR("Failed to open file \"%s\"", resolvedPath.c_str());
         return false;
@@ -134,7 +128,7 @@ bool UsdDracoFileFormat::Read(
     std::ostringstream oss;
     oss << fin.rdbuf();
     const std::string str = oss.str();
-    if (!_ReadFromStream(layerBase, str, metadataOnly, &error)) {
+    if (!_ReadFromStream(layer, str, metadataOnly, &error)) {
         TF_RUNTIME_ERROR("Failed to read from Draco file \"%s\": %s",
             resolvedPath.c_str(), error.c_str());
         return false;
@@ -142,10 +136,10 @@ bool UsdDracoFileFormat::Read(
     return true;
 }
 
-bool UsdDracoFileFormat::ReadFromString(const SdfLayerBasePtr &layerBase,
+bool UsdDracoFileFormat::ReadFromString(SdfLayer *layer,
                                         const std::string &str) const {
     std::string error;
-    if (!_ReadFromStream(layerBase, str, false, &error)) {
+    if (!_ReadFromStream(layer, str, false, &error)) {
         TF_RUNTIME_ERROR("Failed to read data from Draco string: %s",
             error.c_str());
         return false;
@@ -154,18 +148,18 @@ bool UsdDracoFileFormat::ReadFromString(const SdfLayerBasePtr &layerBase,
 }
 
 bool UsdDracoFileFormat::WriteToFile(
-        const SdfLayerBase *layerBase, const std::string &filePath,
+        const SdfLayer &layer, const std::string &filePath,
         const std::string &comment, const FileFormatArguments &args) const {
     return false;
 }
 
 bool UsdDracoFileFormat::WriteToString(
-        const SdfLayerBase *layerBase, std::string *str,
+        const SdfLayer &layer, std::string *str,
         const std::string &comment) const {
     // Draco format can only describe a subset of USD content, so falling back
     // to USDA file format instead.
     return SdfFileFormat::FindById(
-        UsdUsdaFileFormatTokens->Id)->WriteToString(layerBase, str, comment);
+        UsdUsdaFileFormatTokens->Id)->WriteToString(layer, str, comment);
 }
 
 bool UsdDracoFileFormat::WriteToStream(

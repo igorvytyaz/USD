@@ -25,6 +25,7 @@
 
 #include "pxr/imaging/glf/contextCaps.h"
 
+#include "pxr/imaging/hdSt/debugCodes.h"
 #include "pxr/imaging/hdSt/indirectDrawBatch.h"
 #include "pxr/imaging/hdSt/resourceRegistry.h"
 #include "pxr/imaging/hdSt/renderPassShader.h"
@@ -32,6 +33,9 @@
 
 #include "pxr/imaging/hdSt/drawItem.h"
 #include "pxr/imaging/hdSt/shaderCode.h"
+#include "pxr/imaging/hdSt/tokens.h"
+
+#include "pxr/imaging/hd/renderDelegate.h"
 #include "pxr/imaging/hd/vtBufferSource.h"
 
 #include "pxr/base/gf/frustum.h"
@@ -43,7 +47,8 @@ PXR_NAMESPACE_OPEN_SCOPE
 HdSt_RenderPass::HdSt_RenderPass(HdRenderIndex *index,
                                  HdRprimCollection const &collection)
     : HdRenderPass(index, collection)
-    , _lastCullingDisabledState(false)
+    , _lastSettingsVersion(0)
+    , _useTinyPrimCulling(false)
     , _collectionVersion(0)
     , _collectionChanged(false)
 {
@@ -68,8 +73,10 @@ HdSt_RenderPass::_Execute(HdRenderPassStateSharedPtr const &renderPassState,
         renderPassState);
     TF_VERIFY(stRenderPassState);
 
+    _PrepareCommandBuffer(renderTags);
+    
     // CPU frustum culling (if chosen)
-    _PrepareCommandBuffer(stRenderPassState);
+    _Cull(stRenderPassState);
 
     // Downcast the resource registry
     HdStResourceRegistrySharedPtr const& resourceRegistry = 
@@ -77,25 +84,8 @@ HdSt_RenderPass::_Execute(HdRenderPassStateSharedPtr const &renderPassState,
         GetRenderIndex()->GetResourceRegistry());
     TF_VERIFY(resourceRegistry);
 
-    // renderTags.empty() means draw everything in the collection.
-    if (renderTags.empty()) {
-        for (_HdStCommandBufferMap::iterator it  = _cmdBuffers.begin();
-                                           it != _cmdBuffers.end(); it++) {
-            it->second.PrepareDraw(stRenderPassState, resourceRegistry);
-            it->second.ExecuteDraw(stRenderPassState, resourceRegistry);
-        }
-    } else {
-        TF_FOR_ALL(tag, renderTags) {
-            // Check if the render tag has an associated command buffer
-            if (_cmdBuffers.count(*tag) == 0) {
-                continue;
-            }
-
-            // GPU frustum culling (if chosen)
-            _cmdBuffers[*tag].PrepareDraw(stRenderPassState, resourceRegistry);
-            _cmdBuffers[*tag].ExecuteDraw(stRenderPassState, resourceRegistry);
-        }
-    }
+    _cmdBuffer.PrepareDraw(stRenderPassState, resourceRegistry);
+    _cmdBuffer.ExecuteDraw(stRenderPassState, resourceRegistry);
 }
 
 void
@@ -107,53 +97,37 @@ HdSt_RenderPass::_MarkCollectionDirty()
 }
 
 void
-HdSt_RenderPass::_PrepareCommandBuffer(
-    HdStRenderPassStateSharedPtr const &renderPassState)
+HdSt_RenderPass::_PrepareCommandBuffer(TfTokenVector const& renderTags)
 {
     HD_TRACE_FUNCTION();
     GLF_GROUP_FUNCTION();
-    
-    // ------------------------------------------------------------------- #
+
+    // -------------------------------------------------------------------
     // SCHEDULE PREPARATION
-    // ------------------------------------------------------------------- #
+    // -------------------------------------------------------------------
     // We know what must be drawn and that the stream needs to be updated, 
     // so iterate over each prim, cull it and schedule it to be drawn.
 
     HdChangeTracker const &tracker = GetRenderIndex()->GetChangeTracker();
-    GlfContextCaps const &caps = GlfContextCaps::GetInstance();
     HdRprimCollection const &collection = GetRprimCollection();
 
-    const int
-       collectionVersion = tracker.GetCollectionVersion(collection.GetName());
+    const int collectionVersion =
+        tracker.GetCollectionVersion(collection.GetName());
+
+    const int renderTagVersion =
+        tracker.GetRenderTagVersion();
 
     const int batchVersion = tracker.GetBatchVersion();
 
-    const bool 
-       skipCulling = TfDebug::IsEnabled(HD_DISABLE_FRUSTUM_CULLING) ||
-           (caps.multiDrawIndirectEnabled
-               && HdSt_IndirectDrawBatch::IsEnabledGPUFrustumCulling());
+    const bool collectionChanged = _collectionChanged ||
+        (_collectionVersion != collectionVersion);
 
-    const bool 
-       cameraChanged = true,
-       extentsChanged = true,
-       collectionChanged = _collectionChanged 
-                           || (_collectionVersion != collectionVersion);
+    const bool renderTagsChanged = _renderTagVersion != renderTagVersion;
 
-    const bool cullingStateJustChanged = 
-                                    skipCulling != _lastCullingDisabledState;
-    _lastCullingDisabledState = skipCulling;
 
-    bool freezeCulling = TfDebug::IsEnabled(HD_FREEZE_CULL_FRUSTUM);
-
-    // Bypass freezeCulling if  collection has changed
-    // Need to add extents in here as well, once they are
-    // hooked up to detect proper change.
-    if(collectionChanged || cullingStateJustChanged) {
-        freezeCulling = false;
-    }
-
-    // Now either the collection is dirty or culling needs to be applied.
-    if (collectionChanged) {
+    // Now either the collection or render tags is dirty
+    // or culling needs to be applied.
+    if (collectionChanged || renderTagsChanged) {
         HD_PERF_COUNTER_INCR(HdPerfTokens->collectionsRefreshed);
         TF_DEBUG(HD_COLLECTION_CHANGED).Msg("CollectionChanged: %s "
                                             "(repr = %s)"
@@ -163,60 +137,73 @@ HdSt_RenderPass::_PrepareCommandBuffer(
                                              _collectionVersion,
                                              collectionVersion);
 
-        HdRenderIndex::HdDrawItemView items = 
-            GetRenderIndex()->GetDrawItems(collection);
+        HdRenderIndex::HdDrawItemPtrVector items =
+            GetRenderIndex()->GetDrawItems(collection, renderTags);
 
-        // This loop will extract the tags and bucket the geometry in 
-        // the different command buffers.
-        size_t itemCount = 0;
-        _cmdBuffers.clear();
-        for (HdRenderIndex::HdDrawItemView::iterator it = items.begin();
-                                                    it != items.end(); it++ ) {
-            _cmdBuffers[it->first].SwapDrawItems(
-                // Downcast the HdDrawItem entries to HdStDrawItems:
-                reinterpret_cast<std::vector<HdStDrawItem const*>*>(&it->second),
-                batchVersion);
-            itemCount += _cmdBuffers[it->first].GetTotalSize();
-        }
+        _cmdBuffer.SwapDrawItems(
+            // Downcast the HdDrawItem entries to HdStDrawItems:
+            reinterpret_cast<std::vector<HdStDrawItem const*>*>(&items),
+            batchVersion);
 
         _collectionVersion = collectionVersion;
         _collectionChanged = false;
+
+        _renderTagVersion = renderTagVersion;
+
+        size_t itemCount = _cmdBuffer.GetTotalSize();
         HD_PERF_COUNTER_SET(HdTokens->totalItemCount, itemCount);
     } else {
         // validate command buffer to not include expired drawItems,
         // which could be produced by migrating BARs at the new repr creation.
-        for (_HdStCommandBufferMap::iterator it  = _cmdBuffers.begin(); 
-                                           it != _cmdBuffers.end(); it++) {
-            it->second.RebuildDrawBatchesIfNeeded(batchVersion);
-        }
+        _cmdBuffer.RebuildDrawBatchesIfNeeded(batchVersion);
     }
+
+    // -------------------------------------------------------------------
+    // RENDER SETTINGS
+    // -------------------------------------------------------------------
+    HdRenderDelegate *renderDelegate = GetRenderIndex()->GetRenderDelegate();
+    int currentSettingsVersion = renderDelegate->GetRenderSettingsVersion();
+    if (_lastSettingsVersion != currentSettingsVersion) {
+        _lastSettingsVersion = currentSettingsVersion;
+        _useTinyPrimCulling = renderDelegate->GetRenderSetting<bool>(
+            HdStRenderSettingsTokens->enableTinyPrimCulling, false);
+    }
+
+    _cmdBuffer.SetEnableTinyPrimCulling(_useTinyPrimCulling);
+}
+
+void
+HdSt_RenderPass::_Cull(
+    HdStRenderPassStateSharedPtr const &renderPassState)
+{
+    // This process should be moved to HdSt_DrawBatch::PrepareDraw
+    // to be consistent with GPU culling.
+
+    GlfContextCaps const &caps = GlfContextCaps::GetInstance();
+    HdChangeTracker const &tracker = GetRenderIndex()->GetChangeTracker();
+
+    const bool 
+       skipCulling = TfDebug::IsEnabled(HDST_DISABLE_FRUSTUM_CULLING) ||
+           (caps.multiDrawIndirectEnabled
+               && HdSt_IndirectDrawBatch::IsEnabledGPUFrustumCulling());
+    bool freezeCulling = TfDebug::IsEnabled(HD_FREEZE_CULL_FRUSTUM);
 
     if(skipCulling) {
         // Since culling state is stored across renders,
         // we need to update all items visible state
-        for (_HdStCommandBufferMap::iterator it = _cmdBuffers.begin(); 
-                                           it != _cmdBuffers.end(); it++) {
-            it->second.SyncDrawItemVisibility(tracker.GetVisibilityChangeCount());
-        }
+        _cmdBuffer.SyncDrawItemVisibility(tracker.GetVisibilityChangeCount());
 
         TF_DEBUG(HD_DRAWITEMS_CULLED).Msg("CULLED: skipped\n");
     }
     else {
-        // XXX: this process should be moved to HdSt_DrawBatch::PrepareDraw
-        //      to be consistent with GPU culling.
-        if((!freezeCulling)
-            && (collectionChanged || cameraChanged || extentsChanged)) {
+        if (!freezeCulling) {
             // Re-cull the command buffer. 
-            for (_HdStCommandBufferMap::iterator it  = _cmdBuffers.begin(); 
-                                               it != _cmdBuffers.end(); it++) {
-                it->second.FrustumCull(renderPassState->GetCullMatrix());
-            }
+            _cmdBuffer.FrustumCull(renderPassState->GetCullMatrix());
         }
 
-        for (_HdStCommandBufferMap::iterator it  = _cmdBuffers.begin(); 
-                                           it != _cmdBuffers.end(); it++) {
-            TF_DEBUG(HD_DRAWITEMS_CULLED).Msg("CULLED: %zu drawItems\n", 
-                                                 it->second.GetCulledSize());
+        if (TfDebug::IsEnabled(HD_DRAWITEMS_CULLED)) {
+            TF_DEBUG(HD_DRAWITEMS_CULLED).Msg("CULLED: %zu drawItems\n",
+                                              _cmdBuffer.GetCulledSize());
         }
     }
 }

@@ -37,6 +37,7 @@
 #include "pxr/base/gf/matrix4d.h"
 #include "pxr/base/gf/vec2f.h"
 #include "pxr/base/gf/vec4d.h"
+#include "pxr/base/gf/vec4f.h"
 
 #include <boost/shared_ptr.hpp>
 
@@ -45,47 +46,7 @@ PXR_NAMESPACE_OPEN_SCOPE
 
 typedef boost::shared_ptr<class HdRenderPassState> HdRenderPassStateSharedPtr;
 typedef boost::shared_ptr<class HdResourceRegistry> HdResourceRegistrySharedPtr;
-
-class HdRenderBuffer;
-
-/// \class HdRenderPassAttachment
-///
-/// The renderpass attachment represents a binding of some output of the
-/// rendering process to an output buffer.
-struct HdRenderPassAttachment {
-
-    HdRenderPassAttachment()
-        : renderBuffer(nullptr) {}
-
-    /// The identifier of the renderer output to be consumed. This should take
-    /// a value from HdAovTokens.
-    HdAovIdentifier aovName;
-
-    /// The render buffer to be bound to the above terminal output.
-    ///
-    /// From the app or scene, this can be specified as either a pointer or
-    /// a path to a renderbuffer in the render index. If both are specified,
-    /// the pointer is used preferentially.
-    ///
-    /// The attachments in HdRenderPassState should be resolved, so that
-    /// downstream users only need to worry about the pointer.
-    ///
-    /// Note: hydra never takes ownership of the renderBuffer, but assumes it
-    /// will be alive until the end of the renderpass, or whenever the buffer
-    /// is marked converged, whichever is later.
-    HdRenderBuffer *renderBuffer;
-
-    /// The render buffer to be bound to the above terminal output.
-    SdfPath renderBufferId;
-
-    /// The clear value to apply to the bound render buffer, before rendering.
-    /// The type of "clearValue" should match the type of the bound buffer.
-    /// If clearValue is empty, it indicates no clear should be performed.
-    VtValue clearValue;
-};
-
-typedef std::vector<HdRenderPassAttachment>
-    HdRenderPassAttachmentVector;
+class HdCamera;
 
 /// \class HdRenderPassState
 ///
@@ -102,10 +63,10 @@ public:
 
     /// Schedule to update renderPassState parameters.
     /// e.g. camera matrix, override color, id blend factor.
-
-    // Sync, called once per frame after RenderPassState is filled in.
+    /// Prepare, called once per frame after the sync phase, but prior to
+    /// the commit phase.
     HD_API
-    virtual void Sync(HdResourceRegistrySharedPtr const &resourceRegistry);
+    virtual void Prepare(HdResourceRegistrySharedPtr const &resourceRegistry);
 
     // Bind, called once per frame before drawing.
     HD_API
@@ -115,29 +76,42 @@ public:
     HD_API
     virtual void Unbind();
 
-    /// Set camera framing of this render pass state.
+    // ---------------------------------------------------------------------- //
+    /// \name Camera and framing state
+    // ---------------------------------------------------------------------- //
+
+    typedef std::vector<GfVec4d> ClipPlanesVector;
+    /// Camera setter API
+    /// Option 1: Specify matrices, viewport and clipping planes (defined in
+    /// camera space) directly.
     HD_API
-    void SetCamera(GfMatrix4d const &worldToViewMatrix,
-                   GfMatrix4d const &projectionMatrix,
-                   GfVec4d const &viewport);
-    /// temp.
-    /// Get camera parameters.
-    GfMatrix4d const & GetWorldToViewMatrix() const { return _worldToViewMatrix; }
-    GfMatrix4d const & GetProjectionMatrix() const { return _projectionMatrix; }
+    void SetCameraFramingState(GfMatrix4d const &worldToViewMatrix,
+                               GfMatrix4d const &projectionMatrix,
+                               GfVec4d const &viewport,
+                               ClipPlanesVector const & clipPlanes);
+    
+    /// Option 2:  Set camera handle and viewport to use.
+    /// The view, projection and clipping plane info of the camera will be used.
+    HD_API
+    void SetCameraAndViewport(HdCamera const *camera,
+                              GfVec4d const& viewport);
+    /// Camera getter API
+    HD_API
+    GfMatrix4d const & GetWorldToViewMatrix() const;
+
+    HD_API
+    GfMatrix4d GetProjectionMatrix() const;
+
     GfVec4f const & GetViewport() const { return _viewport; }
 
-    /// Set additional clipping planes (defined in camera/view space).
-    typedef std::vector<GfVec4d> ClipPlanesVector;
-    HD_API
-    void SetClipPlanes(ClipPlanesVector const & clipPlanes);
     HD_API
     ClipPlanesVector const & GetClipPlanes() const;
 
-    // Set the attachments for this renderpass to render into.
-    HD_API
-    void SetAttachments(HdRenderPassAttachmentVector const &attachments);
-    HD_API
-    HdRenderPassAttachmentVector const& GetAttachments() const;
+    GfMatrix4d GetCullMatrix() const { return _cullMatrix; }
+
+    // ---------------------------------------------------------------------- //
+    /// \name Application rendering state
+    // ---------------------------------------------------------------------- //
 
     /// Set an override color for rendering where the R, G and B components
     /// are the color and the alpha component is the blend value
@@ -180,6 +154,16 @@ public:
     void SetLightingEnabled(bool enabled);
     bool GetLightingEnabled() const { return _lightingEnabled; }
 
+    // ---------------------------------------------------------------------- //
+    /// \name Render pipeline state
+    // ---------------------------------------------------------------------- //
+
+    /// Set the attachments for this renderpass to render into.
+    HD_API
+    void SetAovBindings(HdRenderPassAovBindingVector const &aovBindings);
+    HD_API
+    HdRenderPassAovBindingVector const& GetAovBindings() const;
+
     HD_API
     void SetCullStyle(HdCullStyle cullStyle);
     HD_API
@@ -201,10 +185,6 @@ public:
                        2*_drawRange[1]/_viewport[3]);
     }
 
-    GfMatrix4d const &GetCullMatrix() const {
-        return _cullMatrix;
-    }
-
     HD_API
     void SetDepthBiasUseDefault(bool useDefault);
     bool GetDepthBiasUseDefault() const { return _depthBiasUseDefault; }
@@ -219,6 +199,12 @@ public:
     HD_API
     void SetDepthFunc(HdCompareFunction depthFunc);
     HdCompareFunction GetDepthFunc() const { return _depthFunc; }
+
+    HD_API
+    void SetEnableDepthMask(bool state);
+
+    HD_API
+    bool GetEnableDepthMask();
 
     HD_API
     void SetStencil(HdCompareFunction func, int ref, int mask,
@@ -236,6 +222,25 @@ public:
     void SetLineWidth(float width);
     float GetLineWidth() const { return _lineWidth; }
     
+    HD_API
+    void SetBlend(HdBlendOp colorOp,
+                  HdBlendFactor colorSrcFactor,
+                  HdBlendFactor colorDstFactor,
+                  HdBlendOp alphaOp,
+                  HdBlendFactor alphaSrcFactor,
+                  HdBlendFactor alphaDstFactor);
+    HdBlendOp GetBlendColorOp() { return _blendColorOp; }
+    HdBlendFactor GetBlendColorSrcFactor() { return _blendColorSrcFactor; }
+    HdBlendFactor GetBlendColorDstFactor() { return _blendColorDstFactor; }
+    HdBlendOp GetBlendAlphaOp() { return _blendAlphaOp; }
+    HdBlendFactor GetBlendAlphaSrcFactor() { return _blendAlphaSrcFactor; }
+    HdBlendFactor GetBlendAlphaDstFactor() { return _blendAlphaDstFactor; }
+    HD_API
+    void SetBlendConstantColor(GfVec4f const & color);
+    const GfVec4f& GetBlendConstantColor() const { return _blendConstantColor; }
+    HD_API
+    void SetBlendEnabled(bool enabled);
+
     HD_API
     void SetAlphaToCoverageUseDefault(bool useDefault);
     bool GetAlphaToCoverageUseDefault() const { return _alphaToCoverageUseDefault; }
@@ -260,27 +265,32 @@ public:
 
 protected:
     // ---------------------------------------------------------------------- //
-    // Camera State 
+    // Camera and framing state 
     // ---------------------------------------------------------------------- //
-    GfMatrix4d _worldToViewMatrix;
-    GfMatrix4d _projectionMatrix;
+    HdCamera const *_camera;
     GfVec4f _viewport;
-
     // TODO: This is only used for CPU culling, should compute it on the fly.
     GfMatrix4d _cullMatrix; 
 
+    GfMatrix4d _worldToViewMatrix;
+    GfMatrix4d _projectionMatrix;
+    ClipPlanesVector _clipPlanes;
+
+    // ---------------------------------------------------------------------- //
+    // Application rendering state
+    // ---------------------------------------------------------------------- //
     GfVec4f _overrideColor;
     GfVec4f _wireframeColor;
-
-    // XXX: This is used for post-shading/lighting overriding via vertex
-    // weights. Ideally, we move this to application state.
     GfVec4f _maskColor;
     GfVec4f _indicatorColor;
-
     GfVec4f _pointColor;
     float _pointSize;
     float _pointSelectedSize;
     bool _lightingEnabled;
+
+    // ---------------------------------------------------------------------- //
+    // Render pipeline state
+    // ---------------------------------------------------------------------- //
     float _alphaThreshold;
     float _tessLevel;
     GfVec2f _drawRange;
@@ -295,6 +305,7 @@ protected:
     float _depthBiasConstantFactor;
     float _depthBiasSlopeFactor;
     HdCompareFunction _depthFunc;
+    bool _depthMaskEnabled;
     HdCullStyle _cullStyle;
 
     // Stencil RenderPassState
@@ -309,6 +320,16 @@ protected:
     // Line width
     float _lineWidth;
     
+    // Blending
+    HdBlendOp _blendColorOp;
+    HdBlendFactor _blendColorSrcFactor;
+    HdBlendFactor _blendColorDstFactor;
+    HdBlendOp _blendAlphaOp;
+    HdBlendFactor _blendAlphaSrcFactor;
+    HdBlendFactor _blendAlphaDstFactor;
+    GfVec4f _blendConstantColor;
+    bool _blendEnabled;
+
     // alpha to coverage
     bool _alphaToCoverageUseDefault;
     bool _alphaToCoverageEnabled;
@@ -316,21 +337,8 @@ protected:
     bool _colorMaskUseDefault;
     ColorMask _colorMask;
 
-    ClipPlanesVector _clipPlanes;
-
-    HdRenderPassAttachmentVector _attachments;
+    HdRenderPassAovBindingVector _aovBindings;
 };
-
-// VtValue requirements for HdRenderPassAttachment
-HD_API
-std::ostream& operator<<(std::ostream& out,
-    const HdRenderPassAttachment& desc);
-HD_API
-bool operator==(const HdRenderPassAttachment& lhs,
-    const HdRenderPassAttachment& rhs);
-HD_API
-bool operator!=(const HdRenderPassAttachment& lhs,
-    const HdRenderPassAttachment& rhs);
 
 PXR_NAMESPACE_CLOSE_SCOPE
 

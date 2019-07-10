@@ -31,12 +31,10 @@
 #include "px_vp20/utils.h"
 
 #include "usdMaya/proxyShape.h"
-#include "usdMaya/util.h"
 
 #include "pxr/base/gf/matrix4d.h"
 #include "pxr/base/gf/vec3f.h"
 #include "pxr/base/tf/stringUtils.h"
-#include "pxr/imaging/hdx/intersector.h"
 
 #include <maya/M3dView.h>
 #include <maya/MBoundingBox.h>
@@ -76,11 +74,10 @@ UsdMayaProxyDrawOverride::UsdMayaProxyDrawOverride(const MObject& obj) :
         MHWRender::MPxDrawOverride(obj,
                                    UsdMayaProxyDrawOverride::draw
 #if MAYA_API_VERSION >= 201651
-                                   , /* isAlwaysDirty = */ false),
+                                   , /* isAlwaysDirty = */ false)
 #else
-                                   ),
+                                   )
 #endif
-        _originalDagPath(MDagPath::getAPathTo(obj))
 {
 }
 
@@ -125,6 +122,14 @@ UsdMayaProxyDrawOverride::boundingBox(
         const MDagPath& objPath,
         const MDagPath& /* cameraPath */) const
 {
+    // If a proxy shape is connected to a Maya instancer, a draw override will
+    // be generated for the proxy shape, but callbacks will get the instancer
+    // DAG path instead. Since we properly handle instancers using the
+    // UsdMayaGL_InstancerImager, silently ignore this weird case.
+    if (objPath.apiType() == MFn::kInstancer) {
+        return MBoundingBox();
+    }
+
     UsdMayaProxyShape* pShape = UsdMayaProxyShape::GetShapeAtDagPath(objPath);
     if (!pShape) {
         return MBoundingBox();
@@ -187,17 +192,9 @@ UsdMayaProxyDrawOverride::prepareForDraw(
 {
     // If a proxy shape is connected to a Maya instancer, a draw override will
     // be generated for the proxy shape, but callbacks will get the instancer
-    // DAG path instead. Use this to our advantage by telling users to switch
-    // to "Full" representation to get instancer drawing.
+    // DAG path instead. Since we properly handle instancer drawing in this
+    // library (using the pxrHdImagingShape), we can safely ignore this case.
     if (objPath.apiType() == MFn::kInstancer) {
-        MDagPath assemblyDagPath;
-        if (UsdMayaUtil::FindAncestorSceneAssembly(
-                _originalDagPath, &assemblyDagPath)) {
-            TF_WARN("Switch '%s' to Full representation to use it with the "
-                    "instancer '%s'",
-                    assemblyDagPath.fullPathName().asChar(),
-                    objPath.fullPathName().asChar());
-        }
         return nullptr;
     }
 
@@ -284,13 +281,13 @@ UsdMayaProxyDrawOverride::userSelect(
         return false;
     }
 
-    const HdxIntersector::HitSet* hitSet =
+    const HdxPickHitVector* hitSet =
         UsdMayaGLBatchRenderer::GetInstance().TestIntersection(
             &_shapeAdapter,
             selectionInfo,
             context);
 
-    const HdxIntersector::Hit* nearestHit =
+    const HdxPickHit* nearestHit =
         UsdMayaGLBatchRenderer::GetNearestHit(hitSet);
 
     if (!nearestHit) {
