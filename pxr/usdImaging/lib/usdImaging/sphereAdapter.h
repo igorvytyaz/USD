@@ -78,6 +78,13 @@ public:
                                UsdImagingInstancerContext const* 
                                    instancerContext = NULL) const;
 
+    // Override the implemetation in GprimAdapter since we don't fetch the
+    // points attribute for implicit primitives.
+    USDIMAGING_API
+    virtual VtValue GetPoints(UsdPrim const& prim,
+                              SdfPath const& cachePath,
+                              UsdTimeCode time) const override;
+
     USDIMAGING_API
     static VtValue GetMeshPoints(UsdPrim const& prim, 
                                  UsdTimeCode time);
@@ -88,6 +95,13 @@ public:
     USDIMAGING_API
     static GfMatrix4d GetMeshTransform(UsdPrim const& prim, 
                                        UsdTimeCode time);
+
+    USDIMAGING_API
+    virtual size_t
+    SampleTransform(UsdPrim const& prim, SdfPath const& cachePath,
+                    const std::vector<float>& configuredSampleTimes,
+                    size_t maxNumSamples, float *sampleTimes,
+                    GfMatrix4d *sampleValues) override;
 };
 
 

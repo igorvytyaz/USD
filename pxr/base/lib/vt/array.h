@@ -242,6 +242,27 @@ class VtArray : public Vt_ArrayBase {
     /// Create an empty array.
     VtArray() : _data(nullptr) {}
 
+    /// Create an array from a pair of iterators
+    ///
+    /// Equivalent to:
+    /// \code
+    /// VtArray<T> v;
+    /// v.assign(first, last);
+    /// \endcode
+    ///
+    /// Note we use enable_if with a dummy parameter here to avoid clashing
+    /// with our other constructor with the following signature:
+    ///
+    /// VtArray(size_t n, value_type const &value = value_type())
+    template <typename LegacyInputIterator>
+    VtArray(LegacyInputIterator first, LegacyInputIterator last,
+            typename std::enable_if<
+                !std::is_integral<LegacyInputIterator>::value, 
+                void>::type* = nullptr)
+        : VtArray() {
+        assign(first, last); 
+    }
+
     /// Create an array with foreign source.
     VtArray(Vt_ArrayForeignDataSource *foreignSrc,
             ElementType *data, size_t size, bool addRef = true)
@@ -274,6 +295,12 @@ class VtArray : public Vt_ArrayBase {
         other._data = nullptr;
     }
 
+    /// Initialize array from the contents of a \p initializerList.
+    VtArray(std::initializer_list<ELEM> initializerList)
+        : VtArray() {
+        assign(initializerList);
+    }
+
     /// Copy assign from \p other.  This array shares underlying data with
     /// \p other.
     VtArray &operator=(VtArray const &other) {
@@ -293,6 +320,12 @@ class VtArray : public Vt_ArrayBase {
         static_cast<Vt_ArrayBase &>(*this) = std::move(other);
         _data = other._data;
         other._data = nullptr;
+        return *this;
+    }
+
+    /// Replace current array contents with those in \p initializerList 
+    VtArray &operator=(std::initializer_list<ELEM> initializerList) {
+        this->assign(initializerList.begin(), initializerList.end());
         return *this;
     }
 
@@ -497,7 +530,7 @@ class VtArray : public Vt_ArrayBase {
         }
         // Adjust size.
         _shapeData.totalSize = newSize;
-    }        
+    }
 
     /// Equivalent to resize(0).
     void clear() {
@@ -537,6 +570,15 @@ class VtArray : public Vt_ArrayBase {
     void assign(size_t n, const value_type &fill) {
         resize(n);
         std::fill(begin(), end(), fill);
+    }
+
+    /// Assign array contents via intializer list
+    /// Equivalent to:
+    /// \code
+    /// array.assign(list.begin(), list.end());
+    /// \endcode
+    void assign(std::initializer_list<ELEM> initializerList) {
+	assign(initializerList.begin(), initializerList.end());
     }
 
     /// Swap the contents of this array with \p other.
@@ -713,7 +755,7 @@ hash_value(VtArray<ELEM> const &array) {
 
 // Specialize traits so others can figure out that VtArray is an array.
 template <typename T>
-struct VtIsArray< VtArray <T> > : public VtTrueType {};
+struct VtIsArray< VtArray <T> > : public std::true_type {};
 
 // free functions for operators combining scalar and array types
 ARCH_PRAGMA_PUSH

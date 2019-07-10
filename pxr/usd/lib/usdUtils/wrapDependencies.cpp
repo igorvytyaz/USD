@@ -25,11 +25,19 @@
 /// \file usdUtils/wrapDependencies.cpp
 
 #include "pxr/pxr.h"
+
+#include "pxr/base/arch/pragmas.h"
+
+ARCH_PRAGMA_PUSH
+ARCH_PRAGMA_PLACEMENT_NEW  // because of pyFunction.h and boost::function
+
+
 #include <boost/python/def.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/tuple.hpp>
 
 #include "pxr/base/tf/makePyConstructor.h"
+#include "pxr/base/tf/pyFunction.h"
 #include "pxr/base/tf/pyResultConversions.h"
 
 #include "pxr/usd/sdf/assetPath.h"
@@ -94,4 +102,12 @@ void wrapDependencies()
 
     bp::def("ComputeAllDependencies", _ComputeAllDependencies,
             (bp::arg("assetPath")));
+
+    using Py_UsdUtilsModifyAssetPathFn = std::string(const std::string&);
+    TfPyFunctionFromPython<Py_UsdUtilsModifyAssetPathFn>();
+    bp::def("ModifyAssetPaths", &UsdUtilsModifyAssetPaths,
+        (bp::arg("layer"), bp::arg("modifyFn")));
+
 }
+
+ARCH_PRAGMA_POP

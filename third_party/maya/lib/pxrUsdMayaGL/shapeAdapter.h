@@ -33,6 +33,8 @@
 #include "pxrUsdMayaGL/userData.h"
 
 #include "pxr/base/gf/matrix4d.h"
+#include "pxr/base/tf/token.h"
+#include "pxr/imaging/hd/repr.h"
 #include "pxr/imaging/hd/rprimCollection.h"
 #include "pxr/usd/sdf/path.h"
 
@@ -88,15 +90,19 @@ class PxrMayaHdShapeAdapter
         /// This method can be called on demand to ensure that the shape
         /// adapter is updated with the current visibility state of the shape.
         ///
+        /// The optional \p view parameter can be passed to have view-based
+        /// state such as view and/or plugin object filtering factor into the
+        /// shape's visibility.
+        ///
         /// Returns true if the visibility state was changed, or false
         /// otherwise.
         PXRUSDMAYAGL_API
-        virtual bool UpdateVisibility(const MSelectionList& isolatedObjects);
+        virtual bool UpdateVisibility(const M3dView* view = nullptr);
 
         /// Gets whether the shape adapter's shape is visible.
         ///
         /// This should be called after a call to UpdateVisibility() to ensure
-        /// that the returned value is correct. 
+        /// that the returned value is correct.
         PXRUSDMAYAGL_API
         virtual bool IsVisible() const;
 
@@ -138,6 +144,29 @@ class PxrMayaHdShapeAdapter
                 MUserData* oldData,
                 const MBoundingBox* boundingBox = nullptr);
 
+        /// Gets the HdReprSelector that corresponds to the given Maya display
+        /// state.
+        ///
+        /// \p displayStyle should be a bitwise combination of
+        /// MHWRender::MFrameContext::DisplayStyle values, typically either
+        /// up-converted from a single M3dView::DisplayStyle value obtained
+        /// using MDrawInfo::displayStyle() for the legacy viewport, or
+        /// obtained using MHWRender::MFrameContext::getDisplayStyle() for
+        /// Viewport 2.0.
+        ///
+        /// \p displayStatus is typically either up-converted from
+        /// a M3dView::DisplayStatus value obtained using
+        /// MDrawInfo::displayStatus() for the legacy viewport, or obtained
+        /// using MHWRender::MGeometryUtilities::displayStatus() for Viewport
+        /// 2.0.
+        ///
+        /// If there is no corresponding HdReprSelector for the given display
+        /// state, an empty HdReprSelector is returned.
+        PXRUSDMAYAGL_API
+        virtual HdReprSelector GetReprSelectorForDisplayState(
+                const unsigned int displayStyle,
+                const MHWRender::DisplayStatus displayStatus) const;
+
         /// Get a set of render params from the shape adapter's current state.
         ///
         /// Sets \p drawShape and \p drawBoundingBox depending on whether shape
@@ -149,6 +178,16 @@ class PxrMayaHdShapeAdapter
 
         PXRUSDMAYAGL_API
         virtual const HdRprimCollection& GetRprimCollection() const;
+
+        /// Retrieves the render tags for this shape.  I.e. which
+        /// prim purposes should be drawn (such as geomerty, proxy, guides
+        /// and/or render).
+        /// This function just returns the _renderTags attribute and it
+        /// is expected each subclass update the attribute in _Sync() or
+        /// overrides this function if it needs special processing.
+        PXRUSDMAYAGL_API
+        virtual const TfTokenVector& GetRenderTags() const;
+
 
         PXRUSDMAYAGL_API
         virtual const GfMatrix4d& GetRootXform() const;
@@ -189,6 +228,20 @@ class PxrMayaHdShapeAdapter
                 const unsigned int displayStyle,
                 const MHWRender::DisplayStatus displayStatus) = 0;
 
+        /// Helper for computing the name of the shape's HdRprimCollection.
+        ///
+        /// The batch renderer currently creates a render task for each shape's
+        /// HdRprimCollection, and those render tasks are identified by an
+        /// SdfPath constructed using the collection's name. We therefore need
+        /// the collection to have a name that is unique to the shape it
+        /// represents and also sanitized for use in SdfPaths.
+        ///
+        /// Returns a TfToken collection name that is unique to the shape and
+        /// is a valid SdfPath identifier, or an empty TfToken is there is an
+        /// error.
+        PXRUSDMAYAGL_API
+        virtual TfToken _GetRprimCollectionName() const;
+
         /// Helper for getting the wireframe color of the shape.
         ///
         /// Determining the wireframe color may involve inspecting the soft
@@ -213,16 +266,15 @@ class PxrMayaHdShapeAdapter
         /// Helper for computing the viewport visibility of the shape.
         ///
         /// Takes into account the visibility attribute on the shape and its
-        /// DAG ancestors, as well as the current \p isolatedObjects for the
-        /// viewport. If \p isolatedObjects is empty, then nothing is filtered,
-        /// but if \p isolatedObjects is non-empty, only the obejcts in the list
-        /// (and their descendants) are visible.
+        /// DAG ancestors. If an M3dView is provided to \p view, then
+        /// view-based state such as view and/or plugin object filtering will
+        /// also be factored into the shape's visibility.
         ///
         /// Returns true if computing the visibility was successful, false if
         /// there was an error. The visibility is returned in \p visibility.
         static bool _GetVisibility(
                 const MDagPath& dagPath,
-                const MSelectionList& isolatedObjects,
+                const M3dView* view,
                 bool* visibility);
 
         /// Construct a new uninitialized PxrMayaHdShapeAdapter.
@@ -239,6 +291,7 @@ class PxrMayaHdShapeAdapter
         bool _drawBoundingBox;
 
         HdRprimCollection _rprimCollection;
+        TfTokenVector     _renderTags;
 
         GfMatrix4d _rootXform;
 

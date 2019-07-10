@@ -54,9 +54,9 @@ public:
         UsdImagingIndexProxy* index,
         UsdImagingInstancerContext const* instancerContext = NULL) override;
 
-    virtual bool ShouldCullChildren(UsdPrim const& prim) override { return true; }
+    virtual bool ShouldCullChildren() const override;
 
-    virtual bool IsInstancerAdapter() override { return true; }
+    virtual bool IsInstancerAdapter() const override;
 
     // ---------------------------------------------------------------------- //
     /// \name Parallel Setup and Resolve
@@ -97,10 +97,10 @@ public:
                                               SdfPath const& cachePath,
                                               TfToken const& propertyName) override;
 
-    virtual void ProcessPrimResync(SdfPath const& usdPath,
+    virtual void ProcessPrimResync(SdfPath const& cachePath,
                                    UsdImagingIndexProxy* index) override;
 
-    virtual void ProcessPrimRemoval(SdfPath const& usdPath,
+    virtual void ProcessPrimRemoval(SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
     virtual void MarkDirty(UsdPrim const& prim,
@@ -117,6 +117,10 @@ public:
                                UsdImagingIndexProxy* index) override;
 
     virtual void MarkCullStyleDirty(UsdPrim const& prim,
+                                    SdfPath const& cachePath,
+                                    UsdImagingIndexProxy* index) override;
+
+    virtual void MarkRenderTagDirty(UsdPrim const& prim,
                                     SdfPath const& cachePath,
                                     UsdImagingIndexProxy* index) override;
 
@@ -149,6 +153,12 @@ public:
                              size_t maxSampleCount,
                              float *times,
                              GfMatrix4d *samples) override;
+
+    virtual size_t
+    SampleTransform(UsdPrim const& prim, SdfPath const& cachePath,
+                    const std::vector<float>& configuredSampleTimes,
+                    size_t maxNumSamples, float *sampleTimes,
+                    GfMatrix4d *sampleValues) override;
 
     virtual size_t
     SamplePrimvar(UsdPrim const& usdPrim,
@@ -188,6 +198,14 @@ public:
                                 HdSelectionSharedPtr const &result) override;
 
     // ---------------------------------------------------------------------- //
+    /// \name Volume field information
+    // ---------------------------------------------------------------------- //
+
+    virtual HdVolumeFieldDescriptorVector
+    GetVolumeFieldDescriptors(UsdPrim const& usdPrim, SdfPath const &id,
+                              UsdTimeCode time) const override;
+
+    // ---------------------------------------------------------------------- //
     /// \name Utilities 
     // ---------------------------------------------------------------------- //
 
@@ -213,7 +231,7 @@ private:
 
     // Process prim removal and output a set of affected instancer paths is
     // provided.
-    void _ProcessPrimRemoval(SdfPath const& usdPath,
+    void _ProcessPrimRemoval(SdfPath const& cachePath,
                              UsdImagingIndexProxy* index,
                              SdfPathVector* instancersToReload);
 
@@ -344,7 +362,7 @@ private:
     // to keep everything bundled up under the instancer path.
     struct _InstancerData {
         _InstancerData() {}
-        SdfPath parentInstancerPath;
+        SdfPath parentInstancerCachePath;
         _ProtoRPrimMap protoRprimMap;
         _UsdToCacheMap usdToCacheMap;
         std::vector<_PrototypeSharedPtr> prototypes;

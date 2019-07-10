@@ -50,10 +50,12 @@ wrapResolver()
              &This::CreateDefaultContextForAsset)
         .def("GetCurrentContext", &This::GetCurrentContext)
 
+        .def("IsRelativePath", &This::IsRelativePath)
         .def("AnchorRelativePath", &This::AnchorRelativePath)
         .def("Resolve", &This::Resolve)
 
         .def("GetExtension", &This::GetExtension)
+        .def("RefreshContext", &This::RefreshContext)
         ;
 
     def("GetResolver", ArGetResolver,

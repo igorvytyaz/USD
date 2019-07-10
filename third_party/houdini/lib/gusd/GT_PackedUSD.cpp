@@ -23,19 +23,19 @@
 //
 #include "GT_PackedUSD.h"
 
+#include "GT_Utils.h"
 #include "GU_PackedUSD.h"
 #include "GU_USD.h"
-
-#include "GT_Utils.h"
 #include "UT_Gf.h"
 
+#include <GA/GA_Names.h>
 #include <GT/GT_DAIndexedString.h>
 #include <GT/GT_DANumeric.h>
 #include <GT/GT_DASubArray.h>
 #include <GT/GT_GEOAttributeFilter.h>
 #include <GT/GT_GEODetailList.h>
-#include <GT/GT_GEOPrimPacked.h>
 #include <GT/GT_GEOPrimCollectBoxes.h>
+#include <GT/GT_GEOPrimPacked.h>
 #include <GT/GT_PrimCollect.h>
 #include <GT/GT_PrimInstance.h>
 #include <GT/GT_PrimPointMesh.h>
@@ -45,12 +45,12 @@
 #include <GT/GT_RefineCollect.h>
 #include <GT/GT_RefineParms.h>
 #include <GU/GU_PrimPacked.h>
-#include <GA/GA_Names.h>
-#include <UT/UT_HDKVersion.h>
+#include <SYS/SYS_Version.h>
 #include <UT/UT_Options.h>
 
-#include <pxr/usd/usdGeom/xformCache.h>
+#include "pxr/usd/usdGeom/xformCache.h"
 
+#include <iostream>
 #include <unordered_map>
 
 using std::cout;
@@ -449,7 +449,7 @@ public:
                     for( int i = 0; i < collect->entries(); ++i ) {
                         addInstances( *rv, collect->getPrim(i), kv.second );
                     }
-		        }
+                }
                 else {
                     addInstances( *rv, geo, kv.second );
                 }
@@ -630,7 +630,7 @@ int GusdGT_PackedUSDMesh::
 getStaticPrimitiveType() 
 {
     if( s_gtPackedUsdMeshId == GT_PRIM_UNDEFINED ) {
-#if HDK_API_VERSION >= 16050000
+#if SYS_VERSION_FULL_INT >= 0x10050000
         // XXX There appears to be a bug in 16.5 that prevents primitives
         // with custom primitive ids to refine in the viewport. As a 
         // workaround we'll use GT_PRIM_ALEMBIC_SHAPE_MESH for now.
@@ -674,7 +674,7 @@ enlargeBounds(UT_BoundingBox boxes[], int nsegments) const
     }
 }
 
-int	GusdGT_PackedUSDMesh::
+int GusdGT_PackedUSDMesh::
 getMotionSegments() const
 {
     if(m_mesh) {
@@ -691,7 +691,7 @@ getMemoryUsage() const
     if(m_mesh) {
         size += m_mesh->getMemoryUsage();
     }
-    for(auto p : m_sourceMeshes) {
+    for(const auto& p : m_sourceMeshes) {
         size += p->getMemoryUsage();
     }
 
