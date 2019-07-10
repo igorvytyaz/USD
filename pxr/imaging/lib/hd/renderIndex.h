@@ -119,20 +119,11 @@ typedef std::unordered_map<TfToken,
 class HdRenderIndex final : public boost::noncopyable {
 public:
     typedef std::vector<HdDrawItem const*> HdDrawItemPtrVector;
-    typedef std::unordered_map<TfToken, HdDrawItemPtrVector,
-                               boost::hash<TfToken> > HdDrawItemView;
 
     /// Create a render index with the given render delegate.
     /// Returns null if renderDelegate is null.
     HD_API
-    static HdRenderIndex* New(HdRenderDelegate *renderDelegate) {
-        if (renderDelegate == nullptr) {
-            TF_CODING_ERROR(
-                "Null Render Delegate provided to create render index");
-            return nullptr;
-        }
-        return new HdRenderIndex(renderDelegate);
-    }
+    static HdRenderIndex* New(HdRenderDelegate *renderDelegate);
 
     HD_API
     ~HdRenderIndex();
@@ -165,7 +156,8 @@ public:
     /// call chain ties it to SyncAll, i.e.
     /// HdRenderIndex::SyncAll > .... > HdRenderPass::Sync > HdRenderIndex::Sync
     HD_API
-    void Sync(HdDirtyListSharedPtr const &dirtyList);
+    void Sync(HdDirtyListSharedPtr const &dirtyList,
+              HdRprimCollection const &collection);
 
     /// Syncs input tasks, B & S prims, (external) computations and processes 
     /// all pending dirty lists (which syncs the R prims). At the end of this
@@ -173,18 +165,19 @@ public:
     /// data sources.
     /// This is the first phase in Hydra's execution. See HdEngine::Execute
     HD_API
-    void SyncAll(HdTaskSharedPtrVector const &tasks, HdTaskContext *taskContext);
+    void SyncAll(HdTaskSharedPtrVector *tasks, HdTaskContext *taskContext);
 
     // ---------------------------------------------------------------------- //
     /// \name Execution
     // ---------------------------------------------------------------------- //
 
-    /// Returns a tag based grouping of the list of relevant draw items for the 
-    /// collection.
+    /// Returns a list of relevant draw items that match the criteria specified
+    //  by renderTags and collection.
     /// The is typically called during render pass execution, which is the 
     /// final phase in the Hydra's execution. See HdRenderPass::Execute
     HD_API
-    HdDrawItemView GetDrawItems(HdRprimCollection const& collection);
+    HdDrawItemPtrVector GetDrawItems(HdRprimCollection const& collection,
+                                     TfTokenVector const& renderTags);
 
     // ---------------------------------------------------------------------- //
     /// \name Change Tracker
@@ -235,6 +228,10 @@ public:
     /// Returns the render tag for the given rprim
     HD_API
     TfToken GetRenderTag(SdfPath const& id) const;
+
+    /// Return the material tag for the given rprim
+    HD_API
+    TfToken GetMaterialTag(SdfPath const& id) const;
 
     /// Returns a sorted list of all Rprims in the render index.
     /// The list is sorted by std::less<SdfPath>
@@ -419,7 +416,12 @@ private:
         HdRprim         *rprim;
     };
 
-    typedef TfHashMap<SdfPath, HdTaskSharedPtr, SdfPath::Hash> _TaskMap;
+    struct _TaskInfo {
+        HdSceneDelegate *sceneDelegate;
+        HdTaskSharedPtr  task;
+    };
+
+    typedef std::unordered_map<SdfPath, _TaskInfo, SdfPath::Hash> _TaskMap;
     typedef TfHashMap<SdfPath, _RprimInfo, SdfPath::Hash> _RprimMap;
     typedef std::map<uint32_t, SdfPath> _RprimPrimIDMap;
 
@@ -442,11 +444,21 @@ private:
     typedef TfHashMap<SdfPath, HdInstancer*, SdfPath::Hash> _InstancerMap;
     _InstancerMap _instancerMap;
 
-    // XXX: TO FIX Move
-    typedef std::vector<HdDirtyListSharedPtr> _DirtyListVector;
-    _DirtyListVector _syncQueue;
+    struct _SyncQueueEntry {
+        HdDirtyListSharedPtr dirtyList;
+        HdRprimCollection    collection;
+
+    };
+    typedef std::vector<_SyncQueueEntry> _SyncQueue;
+    _SyncQueue _syncQueue;
 
     HdRenderDelegate *_renderDelegate;
+
+    // ---------------------------------------------------------------------- //
+    // Sync State
+    // ---------------------------------------------------------------------- //
+    TfTokenVector _activeRenderTags;
+    unsigned int  _renderTagVersion;
 
     /// Register the render delegate's list of supported prim types.
     void _InitPrimTypes();
@@ -457,7 +469,9 @@ private:
     /// Release the fallback prims.
     void _DestroyFallbackPrims();
 
-    typedef tbb::enumerable_thread_specific<HdRenderIndex::HdDrawItemView>
+    void _GatherRenderTags(const HdTaskSharedPtrVector *tasks);
+
+    typedef tbb::enumerable_thread_specific<HdDrawItemPtrVector>
                                                            _ConcurrentDrawItems;
 
     void _AppendDrawItems(const SdfPathVector &rprimIds,

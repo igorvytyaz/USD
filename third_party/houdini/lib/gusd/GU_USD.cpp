@@ -21,17 +21,17 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#include "gusd/GU_USD.h"
-#include "gusd/GU_PackedUSD.h"
+#include "GU_USD.h"
 
-#include "gusd/error.h"
-#include "gusd/USD_Utils.h"
-#include "gusd/UT_Assert.h"
+#include "error.h"
+#include "GU_PackedUSD.h"
+#include "USD_Utils.h"
+#include "UT_Assert.h"
 
 #include "pxr/base/arch/hints.h"
 
-#include <GA/GA_AIFSharedStringTuple.h>
 #include <GA/GA_AIFCopyData.h>
+#include <GA/GA_AIFSharedStringTuple.h>
 #include <GA/GA_AIFTuple.h>
 #include <GA/GA_ATIGroupBool.h>
 #include <GA/GA_AttributeFilter.h>
@@ -43,9 +43,9 @@
 #include <GA/GA_SplittableRange.h>
 #include <GU/GU_Detail.h>
 #include <GU/GU_PrimPacked.h>
+#include <SYS/SYS_Version.h>
 #include <UT/UT_Interrupt.h>
 #include <UT/UT_ParallelUtil.h>
-#include <SYS/SYS_Version.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -1678,6 +1678,46 @@ GusdGU_USD::MultTransformableAttrs(GU_Detail& gd,
     UTparallelFor(GA_SplittableRange(r),
                   _XformAttrsFn(xformer, indexMap, xforms));
     return !task.wasInterrupted();
+}
+
+
+bool
+GusdGU_USD::ImportPrimUnpacked(GU_Detail& gd,
+                               const UsdPrim& prim,
+                               UsdTimeCode time,
+                               const char* lod,
+                               GusdPurposeSet purpose,
+                               const char* primvarPattern,
+                               const UT_Matrix4D* xform,
+                               const GT_RefineParms* refineParms)
+{
+    if (prim) {
+
+        // Create a packed prim on a temporary detail.
+        
+        GU_Detail tmpGd;
+
+        if (auto* packedPrim =
+            GusdGU_PackedUSD::Build(tmpGd, prim, time, lod, purpose, xform)) {
+            
+            const GusdGU_PackedUSD* impl = 
+                dynamic_cast<const GusdGU_PackedUSD*>(
+                    packedPrim->implementation());
+            UT_ASSERT_P(impl);
+
+            // Unpack the prims.
+            
+#if SYS_VERSION_FULL_INT >= 0x11000000
+            UT_Matrix4D xform;
+            packedPrim->getFullTransform4(xform);
+
+            return impl->unpackGeometry(gd, primvarPattern, &xform, refineParms);
+#else
+            return impl->unpackGeometry(gd, primvarPattern, refineParms);
+#endif
+        }
+    }
+    return false;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

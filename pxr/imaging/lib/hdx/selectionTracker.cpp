@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <limits>
 #include <iomanip>
+#include <iostream>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -43,7 +44,7 @@ HdxSelectionTracker::HdxSelectionTracker()
 
 /*virtual*/
 void
-HdxSelectionTracker::Sync(HdRenderIndex* index)
+HdxSelectionTracker::Prepare(HdRenderIndex* index)
 {
 }
 
@@ -76,7 +77,7 @@ namespace {
             if (withIndex) {
                 // Print the indices
                 out << name << ": [ ";
-                for (int i = 0; i < array.size(); i++) {
+                for (size_t i = 0; i < array.size(); i++) {
                     out << std::setfill(' ') << std::setw(3) << i << " ";
                 }
                 out << "] (indices)" << std::endl;

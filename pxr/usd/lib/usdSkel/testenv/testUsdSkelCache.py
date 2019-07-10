@@ -37,13 +37,12 @@ class TestUsdSkelCache(unittest.TestCase):
         stage = Usd.Stage.CreateInMemory()
          
         anim = UsdSkel.Animation.Define(stage, "/Anim")
-        
-        assert cache.GetAnimQuery(anim.GetPrim())
 
-        assert not cache.GetAnimQuery(stage.DefinePrim("/Foo"))
-        
-        assert not cache.GetAnimQuery(
-            UsdGeom.Xform.Define(stage, "/Bar").GetPrim())
+        self.assertTrue(cache.GetAnimQuery(anim))
+        # Backwards-compatibility.
+        self.assertTrue(cache.GetAnimQuery(prim=anim.GetPrim()))
+
+        self.assertFalse(cache.GetAnimQuery(UsdSkel.Animation()))
 
         # TODO: Test query of anim behind instancing
 
@@ -221,26 +220,26 @@ class TestUsdSkelCache(unittest.TestCase):
         query = _GetSkinningQuery(rootPath+"/Model1/NonRigidScope1/A")
         assert query
         assert query.IsRigidlyDeformed()
-        assert query.GetMapper()
+        assert query.GetJointMapper()
         self.assertEquals(query.GetJointOrder(),
                           Vt.TokenArray(["A", "B", "C"]))
 
         query = _GetSkinningQuery(rootPath+"/Model1/NonRigidScope1/B")
         assert query
         assert not query.IsRigidlyDeformed()
-        assert not query.GetMapper()
+        assert not query.GetJointMapper()
 
         query = _GetSkinningQuery(rootPath+"/Model1/NonRigidScope2/A")
         assert query
         assert query.IsRigidlyDeformed()
-        assert query.GetMapper()
+        assert query.GetJointMapper()
         self.assertEquals(query.GetJointOrder(),
                           Vt.TokenArray(["A", "B", "C"]))
 
         query = _GetSkinningQuery(rootPath+"/Model1/NonRigidScope2/B")
         assert query
         assert query.IsRigidlyDeformed()
-        assert not query.GetMapper()
+        assert not query.GetJointMapper()
 
         # TODO: When adding support for rigid deformation of intermediate
         # xformables, Model1/RigidScopeParent/RigidScope should be treated

@@ -66,7 +66,7 @@ UsdImagingConeAdapter::Populate(UsdPrim const& prim,
                             UsdImagingInstancerContext const* instancerContext)
 {
     return _AddRprim(HdPrimTypeTokens->mesh,
-                     prim, index, GetMaterialId(prim), instancerContext);
+                     prim, index, GetMaterialUsdPath(prim), instancerContext);
 }
 
 void 
@@ -115,15 +115,6 @@ UsdImagingConeAdapter::UpdateForTime(UsdPrim const& prim,
     if (requestedBits & HdChangeTracker::DirtyTopology) {
         valueCache->GetTopology(cachePath) = GetMeshTopology();
     }
-    if (requestedBits & HdChangeTracker::DirtyPoints) {
-        valueCache->GetPoints(cachePath) = GetMeshPoints(prim, time);
-
-        // Expose points as a primvar.
-        _MergePrimvar(&valueCache->GetPrimvars(cachePath),
-                      HdTokens->points,
-                      HdInterpolationVertex,
-                      HdPrimvarRoleTokens->point);
-    }
 
     if (_IsRefined(cachePath)) {
         if (requestedBits & HdChangeTracker::DirtySubdivTags) {
@@ -132,6 +123,15 @@ UsdImagingConeAdapter::UpdateForTime(UsdPrim const& prim,
     }
 }
 
+/*virtual*/
+VtValue
+UsdImagingConeAdapter::GetPoints(UsdPrim const& prim,
+                                 SdfPath const& cachePath,
+                                 UsdTimeCode time) const
+{
+    TF_UNUSED(cachePath);
+    return GetMeshPoints(prim, time);   
+}
 
 // -------------------------------------------------------------------------- //
 
@@ -261,7 +261,7 @@ _GenerateConeMeshTopology()
 
     TF_VERIFY(face == numCounts && index == numIndices);
 
-    return HdMeshTopology(PxOsdOpenSubdivTokens->catmark,
+    return HdMeshTopology(PxOsdOpenSubdivTokens->catmullClark,
                           HdTokens->rightHanded,
                           countsArray, indicesArray);
 }

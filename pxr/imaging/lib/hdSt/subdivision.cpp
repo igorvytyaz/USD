@@ -91,9 +91,6 @@ HdSt_OsdIndexComputation::GetBufferSpecs(HdBufferSpecVector *specs) const
                             HdTupleType {HdTypeInt32Vec4, 1});
     } else if (_topology->RefinesToBSplinePatches()) {
         // bi-cubic bspline patches
-        // Note that we don't have an HdType corresponding to
-        // Hd_BSplinePatchIndex; instead, we use its underlying
-        // in-memory representation as an array of 16 int32 values.
         specs->emplace_back(HdTokens->indices,
                             HdTupleType {HdTypeInt32, 16});
         // 3+1 (includes sharpness)
@@ -142,7 +139,7 @@ HdSt_OsdRefineComputationGPU::HdSt_OsdRefineComputationGPU(
                                                     HdSt_MeshTopology *topology,
                                                     TfToken const &name,
                                                     HdType type)
-    : _topology(topology), _name(name), _type(type)
+    : _topology(topology), _name(name)
 {
 }
 

@@ -56,7 +56,7 @@ public:
     bool IsEnabledCullBackfaces() const { return _cullBackfaces; }
     bool IsEnabledIdRender() const { return _testIdRender; }
 
-    UsdImagingGLEngine::DrawMode GetDrawMode() const { return _drawMode; }
+    UsdImagingGLDrawMode GetDrawMode() const { return _drawMode; }
 
     std::string const & GetStageFilePath() const { return _stageFilePath; }
     std::string const & GetOutputFilePath() const { return _outputFilePath; }
@@ -84,6 +84,16 @@ protected:
     bool _ShouldFrameAll() const { return _shouldFrameAll; }
     TfToken _GetRenderer() const { return _renderer; }
 
+    HdRenderIndex *_GetRenderIndex(UsdImagingGLEngine *engine) {
+        return engine->_GetRenderIndex();
+    }
+    
+    void _Render(UsdImagingGLEngine *engine, 
+                 const UsdImagingGLRenderParams &params) {
+        SdfPathVector roots(1, SdfPath::AbsoluteRootPath());
+        engine->RenderBatch(roots, params);
+    }
+
 private:
     struct _Args;
     void _Parse(int argc, char *argv[], _Args* args);
@@ -104,7 +114,7 @@ private:
 
     std::vector<GfVec4d> _clipPlanes;
 
-    UsdImagingGLEngine::DrawMode _drawMode;
+    UsdImagingGLDrawMode _drawMode;
     bool _shouldFrameAll;
     bool _cullBackfaces;
     GfVec4f _clearColor;

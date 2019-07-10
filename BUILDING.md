@@ -44,7 +44,7 @@ cmake                                       \
 cmake --build . --target install -- -j <NUM_CORES>
 ```
 
-#### On OS X
+#### On macOS
 
 The following will generate an Xcode project that can be used to build USD.
 
@@ -165,6 +165,12 @@ jpg, png, tga, and hdr. With OpenImageIO enabled, support extends to exr, tif,
 zfile, and tx file formats, which allows for the use of more advanced features
 like subimages and mipmaps.
 
+##### OpenColorIO 
+
+This plugin can optionally be enabled by specifying the cmake flag
+```PXR_BUILD_OPENCOLORIO_PLUGIN=TRUE```. When enabled, OpenColorIO provides 
+color management for Hydra viewports. 
+
 ##### Embree Rendering
 
 This component contains an example rendering backend for Hydra and usdview, based on the
@@ -175,6 +181,20 @@ Embree 2.16.1. The additional dependencies that must be supplied when invoking c
 | Dependency Name       | Description                                 | Version   |
 | --------------        | -----------------------------------         | -------   |
 | EMBREE_LOCATION       | The root path to an embree library install. | 2.16.1    |
+
+##### RenderMan Rendering
+
+This plugin uses Pixar's RenderMan as a rendering backend for Hydra and 
+usdview. Enable the plugin in the build by specifying the cmake flag 
+```PXR_BUILD_PRMAN_PLUGIN=TRUE``` when invoking cmake. This plugin is 
+compatible with RenderMan 22.5.  The additional dependencies that must be 
+supplied when invoking cmake are:
+
+| Dependency Name       | Description                                 | Version   |
+| --------------        | -----------------------------------         | -------   |
+| RENDERMAN_LOCATION    | The root path to an RenderMan install.      | 22.5      |
+
+More documentation is available [here](http://openusd.org/docs/RenderMan-USD-Imaging-Plugin.html).
 
 ## Third Party Plugins
 
@@ -309,7 +329,7 @@ flags:
 | ------------------------------ |-----------------------------------------| ------- |
 | PXR_SET_EXTERNAL_NAMESPACE     | The outer namespace identifier          | ```pxr```     |
 | PXR_SET_INTERNAL_NAMESPACE     | The internal namespace identifier       | ```pxrInternal_v_x_y``` (for version x.y.z) |
-| PXR_ENABLE_NAMESPACES          | Enable namespaces                       | ```OFF```    |
+| PXR_ENABLE_NAMESPACES          | Enable namespaces                       | ```ON```    |
 
 When enabled, there are a set of macros provided in a generated header,
 pxr/pxr.h, which facilitates using namespaces:

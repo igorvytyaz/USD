@@ -116,7 +116,7 @@ HdSceneDelegate::GetExtent(SdfPath const & id)
 GfMatrix4d
 HdSceneDelegate::GetTransform(SdfPath const & id)
 {
-    return GfMatrix4d();
+    return GfMatrix4d(1);
 }
 
 /*virtual*/
@@ -205,6 +205,18 @@ HdSceneDelegate::GetCategories(SdfPath const& id)
     return VtArray<TfToken>();
 }
 
+std::vector<VtArray<TfToken>>
+HdSceneDelegate::GetInstanceCategories(SdfPath const &instancerId)
+{
+    return std::vector<VtArray<TfToken>>();
+}
+
+HdIdVectorSharedPtr
+HdSceneDelegate::GetCoordSysBindings(SdfPath const& id)
+{
+    return nullptr;
+}
+
 // -----------------------------------------------------------------------//
 /// \name Instancer prototypes
 // -----------------------------------------------------------------------//
@@ -219,23 +231,21 @@ HdSceneDelegate::GetInstanceIndices(SdfPath const &instancerId,
 
 /*virtual*/
 GfMatrix4d
-HdSceneDelegate::GetInstancerTransform(SdfPath const &instancerId,
-                                         SdfPath const &prototypeId)
+HdSceneDelegate::GetInstancerTransform(SdfPath const &instancerId)
 {
-    return GfMatrix4d();
+    return GfMatrix4d(1);
 }
 
 /*virtual*/
 size_t
 HdSceneDelegate::SampleInstancerTransform(SdfPath const &instancerId,
-                                          SdfPath const &prototypeId,
                                           size_t maxSampleCount,
                                           float *times,
                                           GfMatrix4d *samples)
 {
     if (maxSampleCount > 0) {
         times[0] = 0;
-        samples[0] = GetInstancerTransform(instancerId, prototypeId);
+        samples[0] = GetInstancerTransform(instancerId);
         return 1;
     }
     return 0;
@@ -362,10 +372,11 @@ HdSceneDelegate::GetLightParamValue(SdfPath const &id,
 // -----------------------------------------------------------------------//
 
 /*virtual*/
-std::vector<GfVec4d>
-HdSceneDelegate::GetClipPlanes(SdfPath const& cameraId)
+VtValue 
+HdSceneDelegate::GetCameraParamValue(SdfPath const &cameraId, 
+                                     TfToken const &paramName) 
 {
-    return std::vector<GfVec4d>();
+    return VtValue();
 }
 
 // -----------------------------------------------------------------------//
@@ -435,6 +446,13 @@ HdSceneDelegate::GetExtComputationPrimvarDescriptors(
     return HdExtComputationPrimvarDescriptorVector();
 }
 
+/*virtual*/
+VtValue
+HdSceneDelegate::GetExtComputationInput(SdfPath const& computationId,
+                                        TfToken const& input)
+{
+    return VtValue();
+}
 
 /*virtual*/
 std::string
@@ -442,6 +460,22 @@ HdSceneDelegate::GetExtComputationKernel(SdfPath const& id)
 {
     return std::string();
 }
+
+
+// -----------------------------------------------------------------------//
+/// \name Task Aspects
+// -----------------------------------------------------------------------//
+/*virtual*/
+TfTokenVector HdSceneDelegate::GetTaskRenderTags(SdfPath const& taskId)
+{
+    // While the empty vector can mean no filtering and let all tags
+    // pass.  If any task has a non-empty render tags, the empty tags
+    // means that the task isn't interested in any prims at all.
+    // So the empty set use for no filtering should be limited
+    // to tests.
+    return TfTokenVector();
+}
+
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
