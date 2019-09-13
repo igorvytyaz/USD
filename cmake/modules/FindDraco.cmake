@@ -25,4 +25,5 @@
 # provides the result by defining variable DRACO_LIBRARY.
 #
 
-find_library(DRACO_LIBRARY draco.lib libdraco.a ${DRACO_ROOT})
+find_library(DRACO_LIBRARY draco PATHS ${DRACO_ROOT})
+find_path(DRACO_INCLUDES draco/compression/decode.h PATHS "${DRACO_ROOT}/src")
